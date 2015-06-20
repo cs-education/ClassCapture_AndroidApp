@@ -8,6 +8,21 @@ import android.widget.ListAdapter;
 import android.widget.TextView;
 
 import com.classtranscribe.classcapture.R;
+import com.classtranscribe.classcapture.models.DateTimeTypeAdapter;
+import com.classtranscribe.classcapture.models.Recording;
+import com.classtranscribe.classcapture.models.RecordingService;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import hirondelle.date4j.DateTime;
+import retrofit.Callback;
+import retrofit.RestAdapter;
+import retrofit.RetrofitError;
+import retrofit.client.Response;
+import retrofit.converter.GsonConverter;
 
 /**
  * Created by sourabhdesai on 6/18/15.
@@ -15,9 +30,27 @@ import com.classtranscribe.classcapture.R;
 public class RecordingsListAdapter implements ListAdapter {
 
     private final Context context;
+    private final RecordingService recordingService;
+    private List<Recording> recordings;
 
     public RecordingsListAdapter(Context context) {
+        // Save context for view creation within adapter
         this.context = context;
+
+        // GSON converter with DateTime Type Adapter
+        Gson gson = new GsonBuilder()
+                .registerTypeAdapter(DateTime.class, new DateTimeTypeAdapter())
+                .create();
+        
+        // Create rest adapter from RetroFit. Initialize endpoint
+        RestAdapter restAdapter = new RestAdapter.Builder()
+                .setEndpoint(this.context.getString(R.string.api_base_url))
+                .setConverter(new GsonConverter(gson))
+                .build();
+
+        this.recordingService = restAdapter.create(RecordingService.class);
+
+        this.recordings = new ArrayList<Recording>(); // Initially empty
     }
 
     @Override
@@ -31,8 +64,22 @@ public class RecordingsListAdapter implements ListAdapter {
     }
 
     @Override
-    public void registerDataSetObserver(DataSetObserver observer) {
+    public void registerDataSetObserver(final DataSetObserver observer) {
+        // While the DataSetObserver is still in scope, make the request
+        // Can call on observers methods within callback
+        this.recordingService.recordingList(new Callback<List<Recording>>() {
+            @Override
+            public void success(List<Recording> recordings, Response response) {
+                RecordingsListAdapter.this.recordings = recordings;
+                observer.onChanged();
+            }
 
+            @Override
+            public void failure(RetrofitError error) {
+                System.out.println(error);
+                observer.onInvalidated();
+            }
+        });
     }
 
     @Override
@@ -42,17 +89,17 @@ public class RecordingsListAdapter implements ListAdapter {
 
     @Override
     public int getCount() {
-        return 5;
+        return this.recordings.size();
     }
 
     @Override
-    public String getItem(int position) {
-        return "Item at " + position;
+    public Recording getItem(int position) {
+        return this.recordings.get(position);
     }
 
     @Override
     public long getItemId(int position) {
-        return position;
+        return this.recordings.get(position).id;
     }
 
     @Override
@@ -71,11 +118,11 @@ public class RecordingsListAdapter implements ListAdapter {
             recordingListItemView = View.inflate(this.context, R.layout.listitem_recording, null);
         }
 
-        String recordingTitle = this.getItem(position);
+        Recording recording = this.getItem(position);
 
         // Set text for textview in list item view to be recordingTitle
         TextView titleTextView = (TextView) recordingListItemView.findViewById(R.id.recordingTitle);
-        titleTextView.setText(recordingTitle);
+        titleTextView.setText(recording.filename);
 
         return recordingListItemView;
     }
@@ -92,6 +139,6 @@ public class RecordingsListAdapter implements ListAdapter {
 
     @Override
     public boolean isEmpty() {
-        return this.getCount() == 0;
+        return this.recordings.isEmpty();
     }
 }
