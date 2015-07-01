@@ -8,21 +8,15 @@ import android.widget.ListAdapter;
 import android.widget.TextView;
 
 import com.classtranscribe.classcapture.R;
-import com.classtranscribe.classcapture.models.DateTimeTypeAdapter;
 import com.classtranscribe.classcapture.models.Recording;
 import com.classtranscribe.classcapture.models.RecordingService;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import hirondelle.date4j.DateTime;
 import retrofit.Callback;
-import retrofit.RestAdapter;
 import retrofit.RetrofitError;
 import retrofit.client.Response;
-import retrofit.converter.GsonConverter;
 
 /**
  * Created by sourabhdesai on 6/18/15.
@@ -37,18 +31,7 @@ public class RecordingsListAdapter implements ListAdapter {
         // Save context for view creation within adapter
         this.context = context;
 
-        // GSON converter with DateTime Type Adapter
-        Gson gson = new GsonBuilder()
-                .registerTypeAdapter(DateTime.class, new DateTimeTypeAdapter())
-                .create();
-        
-        // Create rest adapter from RetroFit. Initialize endpoint
-        RestAdapter restAdapter = new RestAdapter.Builder()
-                .setEndpoint(this.context.getString(R.string.api_base_url))
-                .setConverter(new GsonConverter(gson))
-                .build();
-
-        this.recordingService = restAdapter.create(RecordingService.class);
+        this.recordingService = RecordingServiceProvider.getInstance(this.context);
 
         this.recordings = new ArrayList<Recording>(); // Initially empty
     }
@@ -122,7 +105,7 @@ public class RecordingsListAdapter implements ListAdapter {
 
         // Set text for textview in list item view to be recordingTitle
         TextView titleTextView = (TextView) recordingListItemView.findViewById(R.id.recordingTitle);
-        titleTextView.setText(recording.filename);
+        titleTextView.setText(recording.toString());
 
         return recordingListItemView;
     }

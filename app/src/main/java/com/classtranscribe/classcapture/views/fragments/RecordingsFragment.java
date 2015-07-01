@@ -1,12 +1,14 @@
 package com.classtranscribe.classcapture.views.fragments;
 
 import android.app.Activity;
+import android.net.Uri;
 import android.os.Bundle;
 import android.support.v4.app.ListFragment;
 import android.view.View;
 import android.widget.ListView;
 
 import com.classtranscribe.classcapture.controllers.adapters.RecordingsListAdapter;
+import com.classtranscribe.classcapture.models.Recording;
 
 /**
  * A fragment representing a list of Items.
@@ -18,6 +20,7 @@ import com.classtranscribe.classcapture.controllers.adapters.RecordingsListAdapt
 public class RecordingsFragment extends ListFragment {
 
     private OnFragmentInteractionListener listener;
+    private RecordingsListAdapter listAdapter;
 
     public static RecordingsFragment newInstance() {
         RecordingsFragment fragment = new RecordingsFragment();
@@ -36,8 +39,8 @@ public class RecordingsFragment extends ListFragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        setListAdapter(new RecordingsListAdapter(this.getActivity()));
+        this.listAdapter = new RecordingsListAdapter(this.getActivity());
+        setListAdapter(this.listAdapter);
     }
 
 
@@ -61,10 +64,19 @@ public class RecordingsFragment extends ListFragment {
     @Override
     public void onListItemClick(ListView l, View v, int position, long id) {
         super.onListItemClick(l, v, position, id);
+        System.out.println("Click at pos " + position);
 
         if (listener != null) {
+            System.out.println("Listener != null");
             // Notify the active callbacks interface (the activity, if the
             // fragment is attached to one) that an item has been selected.
+
+            // Get Recording object corresponding to list item click
+            Recording recording = this.listAdapter.getItem(position);
+            // Create uri for selected video
+            Uri videoUri = Uri.parse(recording.getVideoURL(this.getActivity()));
+            // Send uri to main activity for
+            listener.startVideoViewingActivity(videoUri);
         }
     }
 
@@ -79,7 +91,7 @@ public class RecordingsFragment extends ListFragment {
      * >Communicating with Other Fragments</a> for more information.
      */
     public interface OnFragmentInteractionListener {
-        public void onFragmentInteraction(String id);
+        public void startVideoViewingActivity(Uri videoUri);
     }
 
 }
