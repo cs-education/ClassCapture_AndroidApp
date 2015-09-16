@@ -170,7 +170,7 @@ public class Recording {
     }
 
     public String getVideoURL(Context context) {
-        return context.getString(R.string.api_base_url) + "/getVideo/" + this.filename;
+        return context.getString(R.string.api_base_url) + "/video/" + this.filename;
     }
 
     /**

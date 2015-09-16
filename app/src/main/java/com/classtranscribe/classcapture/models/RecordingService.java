@@ -26,6 +26,6 @@ public interface RecordingService {
     void newRecording(@Body Recording recording, Callback<Recording> cb);
 
     @Multipart
-    @POST("/postVideo/{videoname}")
+    @POST("/video/{videoname}")
     void uploadRecordingVideo(@Path("videoname") String videoname, @Part("video") TypedFile videoFile, Callback<Object> cb);
 }
