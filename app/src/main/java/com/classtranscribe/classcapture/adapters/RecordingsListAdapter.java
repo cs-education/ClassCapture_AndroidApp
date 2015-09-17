@@ -1,4 +1,4 @@
-package com.classtranscribe.classcapture.controllers.adapters;
+package com.classtranscribe.classcapture.adapters;
 
 import android.content.Context;
 import android.database.DataSetObserver;
@@ -9,7 +9,8 @@ import android.widget.TextView;
 
 import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.models.Recording;
-import com.classtranscribe.classcapture.models.RecordingService;
+import com.classtranscribe.classcapture.services.RecordingService;
+import com.classtranscribe.classcapture.services.RecordingServiceProvider;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +51,7 @@ public class RecordingsListAdapter implements ListAdapter {
     public void registerDataSetObserver(final DataSetObserver observer) {
         // While the DataSetObserver is still in scope, make the request
         // Can call on observers methods within callback
-        this.recordingService.recordingList(new Callback<List<Recording>>() {
+        this.recordingService.listRecordings(new Callback<List<Recording>>() {
             @Override
             public void success(List<Recording> recordings, Response response) {
                 RecordingsListAdapter.this.recordings = recordings;
@@ -98,7 +99,7 @@ public class RecordingsListAdapter implements ListAdapter {
             // can be reused
             recordingListItemView = convertView;
         } else {
-            recordingListItemView = View.inflate(this.context, R.layout.listitem_recording, null);
+            recordingListItemView = View.inflate(this.context, R.layout.text_listitem, null);
         }
 
         Recording recording = this.getItem(position);

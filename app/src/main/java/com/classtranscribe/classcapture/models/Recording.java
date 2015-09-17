@@ -7,7 +7,8 @@ import android.net.Uri;
 import android.provider.MediaStore;
 
 import com.classtranscribe.classcapture.R;
-import com.classtranscribe.classcapture.controllers.adapters.RecordingServiceProvider;
+import com.classtranscribe.classcapture.services.RecordingServiceProvider;
+import com.classtranscribe.classcapture.services.RecordingService;
 
 import java.io.File;
 import java.util.Date;
@@ -19,6 +20,7 @@ import retrofit.mime.TypedFile;
 
 /**
  * Created by sourabhdesai on 6/19/15.
+ * Recordings will not be saved in Realm, they need to be retrieved from backend via Retrofit HTTP Client Methods
  */
 
 /**
@@ -34,10 +36,13 @@ import retrofit.mime.TypedFile;
  */
 public class Recording {
 
+    private static final String VIDEO_MIME_TYPE = "video/mp4";
+
     public Date startTime;
     public Date endTime;
     public String filename;
     public long id;
+    public long section; // Id for section that this recording is for
     public Date createdAt;
     public Date updatedAt;
 
@@ -47,13 +52,15 @@ public class Recording {
         // does nothing
     }
 
-    public Recording(Date startTime, Date endTime) {
+    public Recording(Date startTime, Date endTime, long section) {
         this.startTime = startTime;
         this.endTime = endTime;
+        this.section = section;
     }
 
-    public Recording(Context context, Uri videoUri) {
+    public Recording(Context context, Uri videoUri, long section) {
         this.videoUri = videoUri;
+        this.section = section;
 
         // Query MediaStore for metadata on retrieved video.
         // Set instance variables according to metadata
@@ -147,7 +154,7 @@ public class Recording {
                 // Now upload the video recording with the filename given by the Recording in the response
                 System.err.println("videoUri.getPath()==" + getFilePathFromURI(context, Recording.this.videoUri));
                 File videoFile = new File(getFilePathFromURI(context, Recording.this.videoUri));
-                TypedFile typedVideoFile = new TypedFile("video/mp4", videoFile);
+                TypedFile typedVideoFile = new TypedFile(VIDEO_MIME_TYPE, videoFile);
                 // Upload the video
                 recordingService.uploadRecordingVideo(recording.filename, typedVideoFile, new Callback<Object>() {
                     @Override

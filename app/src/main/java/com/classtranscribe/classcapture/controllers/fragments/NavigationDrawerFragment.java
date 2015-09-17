@@ -1,4 +1,4 @@
-package com.classtranscribe.classcapture.views.fragments;
+package com.classtranscribe.classcapture.controllers.fragments;
 
 import android.app.Activity;
 import android.content.SharedPreferences;
@@ -102,7 +102,8 @@ public class NavigationDrawerFragment extends Fragment {
                 android.R.id.text1,
                 new String[]{
                         getString(R.string.title_section1),
-                        getString(R.string.title_section2)
+                        getString(R.string.title_section2),
+                        getString(R.string.title_section3)
                 }));
         drawerListView.setItemChecked(currentSelectedPosition, true);
         return drawerListView;

@@ -1,4 +1,4 @@
-package com.classtranscribe.classcapture.views.fragments;
+package com.classtranscribe.classcapture.controllers.fragments;
 
 import android.app.Activity;
 import android.net.Uri;
@@ -7,7 +7,7 @@ import android.support.v4.app.ListFragment;
 import android.view.View;
 import android.widget.ListView;
 
-import com.classtranscribe.classcapture.controllers.adapters.RecordingsListAdapter;
+import com.classtranscribe.classcapture.adapters.RecordingsListAdapter;
 import com.classtranscribe.classcapture.models.Recording;
 
 /**

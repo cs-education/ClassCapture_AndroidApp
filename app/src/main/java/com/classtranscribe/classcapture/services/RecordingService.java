@@ -1,4 +1,6 @@
-package com.classtranscribe.classcapture.models;
+package com.classtranscribe.classcapture.services;
+
+import com.classtranscribe.classcapture.models.Recording;
 
 import java.util.List;
 
@@ -17,7 +19,7 @@ import retrofit.mime.TypedFile;
 public interface RecordingService {
 
     @GET("/recording")
-    void recordingList(Callback<List<Recording>> cb);
+    void listRecordings(Callback<List<Recording>> cb);
 
     @GET("/recording/{id}")
     void getRecording(@Path("id") long recordingId, Callback<Recording> cb);

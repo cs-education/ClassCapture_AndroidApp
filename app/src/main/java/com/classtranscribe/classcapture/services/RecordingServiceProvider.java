@@ -1,9 +1,9 @@
-package com.classtranscribe.classcapture.controllers.adapters;
+package com.classtranscribe.classcapture.services;
 
 import android.content.Context;
 
 import com.classtranscribe.classcapture.R;
-import com.classtranscribe.classcapture.models.RecordingService;
+import com.classtranscribe.classcapture.services.RecordingService;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 

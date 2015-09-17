@@ -1,4 +1,4 @@
-package com.classtranscribe.classcapture.views.activities;
+package com.classtranscribe.classcapture.controllers.activities;
 
 import android.content.Intent;
 import android.net.Uri;
@@ -14,9 +14,10 @@ import android.widget.Toast;
 
 import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.models.Recording;
-import com.classtranscribe.classcapture.views.fragments.NavigationDrawerFragment;
-import com.classtranscribe.classcapture.views.fragments.RecordingsFragment;
-import com.classtranscribe.classcapture.views.fragments.VideoCaptureFragment;
+import com.classtranscribe.classcapture.controllers.fragments.NavigationDrawerFragment;
+import com.classtranscribe.classcapture.controllers.fragments.RecordingsFragment;
+import com.classtranscribe.classcapture.controllers.fragments.SettingsFragment;
+import com.classtranscribe.classcapture.controllers.fragments.VideoCaptureFragment;
 
 import retrofit.RetrofitError;
 
@@ -76,6 +77,8 @@ public class MainActivity extends ActionBarActivity
                 return RecordingsFragment.newInstance();
             case 1:
                 return VideoCaptureFragment.newInstance();
+            case 2:
+                return SettingsFragment.newInstance();
             default:
                 return RecordingsFragment.newInstance();
         }
