@@ -5,10 +5,18 @@
     <FrameLayout
         android:layout_width="wrap_content"
         android:layout_height="0dp"
-        android:layout_weight="0.5">
+        android:layout_weight="0.5"
+        android:layout_gravity="center"
+        android:gravity="center">
         <VideoView
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentBottom="true"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentRight="true"
+            android:layout_centerInParent="true"
+            android:gravity="center"
             android:id="@+id/video_view"
             android:outlineProvider="bounds" />
     </FrameLayout>

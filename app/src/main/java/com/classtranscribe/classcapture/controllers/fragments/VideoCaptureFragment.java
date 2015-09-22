@@ -19,12 +19,13 @@ import android.widget.Toast;
 import android.widget.VideoView;
 
 import com.classtranscribe.classcapture.R;
-import com.classtranscribe.classcapture.adapters.SectionListAdapter;
+import com.classtranscribe.classcapture.adapters.SectionSpinnerAdapter;
 import com.classtranscribe.classcapture.models.Recording;
 import com.classtranscribe.classcapture.models.Section;
 import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import retrofit.Callback;
@@ -39,7 +40,7 @@ import retrofit.client.Response;
  * Use the {@link VideoCaptureFragment#newInstance} factory method to
  * create an instance of this fragment.
  */
-public class VideoCaptureFragment extends Fragment implements AdapterView.OnItemClickListener {
+public class VideoCaptureFragment extends Fragment implements AdapterView.OnItemSelectedListener {
 
     // Static UI Text
     private final static String UPLOAD_DIALOG_TITLE   = "Uploading Recording";
@@ -63,6 +64,7 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
 
     // Section to be attached with recording
     Section chosenSection;
+    private SimpleDateFormat dateFormat = new SimpleDateFormat("h:mm:ss a"); // format with which start and end time of video will be displayed
 
     /**
      * Use this factory method to create a new instance of
@@ -130,20 +132,31 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
         // Apparently, running queries on UI thread isn't too big of a deal:
         //  http://stackoverflow.com/questions/27805580/realm-io-and-asynchronous-queries
         // Given our data-set will be really small anyways, I think its worth just doing on UI thread for cleanliness
-        this.sectionSpinner.setAdapter(new SectionListAdapter(getActivity()));
-        this.sectionSpinner.setOnItemClickListener(this);
+        this.sectionSpinner.setAdapter(new SectionSpinnerAdapter(getActivity()));
+        this.sectionSpinner.setOnItemSelectedListener(this);
     }
 
     // Called when a section is selected from the spinner
     @Override
-    public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
         this.chosenSection = (Section) this.sectionSpinner.getItemAtPosition(position);
         this.uploadButton.setEnabled(true);
+    }
+
+    @Override
+    public void onNothingSelected(AdapterView<?> parent) {
+        this.chosenSection = null;
+        this.uploadButton.setEnabled(false);
     }
 
     public void onUploadClicked() {
         boolean videoHasBeenCaptured = this.getArguments().getBoolean(VIDEO_HAS_BEEN_CAPTURED, false);
         if (videoHasBeenCaptured) {
+
+            if (this.chosenSection == null) {
+                Toast.makeText(getActivity(), "Please choose a section for this recording", Toast.LENGTH_SHORT).show();
+                return;
+            }
 
             if (this.capturedRecording.startTime == null) {
                 System.err.println("capturedRecording.startTime is null");
@@ -193,11 +206,6 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
         super.onResume();
         Bundle fragArgs = this.getArguments();
 
-        if (this.chosenSection == null) {
-            Toast.makeText(getActivity(), "Please choose a section for this recording", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
         // This block is for things that only need to be done to set up for video capture/upload
         if (!fragArgs.getBoolean(VIDEO_HAS_BEEN_CAPTURED, false)) {
             // Set fragment callback
@@ -218,7 +226,7 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
 
                     // Set end time of capturedRecording to current time
                     Context currContext = VideoCaptureFragment.this.getActivity();
-                    VideoCaptureFragment.this.capturedRecording = new Recording(currContext, videoUri, VideoCaptureFragment.this.chosenSection.id);
+                    VideoCaptureFragment.this.capturedRecording = new Recording(currContext, videoUri, VideoCaptureFragment.this.chosenSection.getId());
 
                     // Set metadata views appropriately
                     VideoCaptureFragment.this.updateRecordingDurationTextView();
@@ -241,7 +249,11 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
             throw new IllegalStateException("Recording Object isn't populated with duration metadata");
         }
 
-        String text = start + " to " + end;
+        // Format according to formatter declared above
+        String startStr = this.dateFormat.format(start);
+        String endStr   = this.dateFormat.format(end);
+
+        String text = startStr + " to " + endStr;
         this.recordingDurationTextView.setText(text);
     }
 

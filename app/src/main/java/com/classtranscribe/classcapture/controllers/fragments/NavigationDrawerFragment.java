@@ -22,6 +22,10 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
 import com.classtranscribe.classcapture.R;
+import com.classtranscribe.classcapture.models.Course;
+import com.classtranscribe.classcapture.models.Section;
+
+import io.realm.Realm;
 
 /**
  * Fragment used for managing interactions for and presentation of a navigation drawer.
@@ -72,8 +76,18 @@ public class NavigationDrawerFragment extends Fragment {
         userLearnedDrawer = sp.getBoolean(PREF_USER_LEARNED_DRAWER, false);
 
         if (savedInstanceState != null) {
+            // Won't be null if user has selected an item form nav drawer
             currentSelectedPosition = savedInstanceState.getInt(STATE_SELECTED_POSITION);
             fromSavedInstanceState = true;
+        } else {
+            // User has just opened app, so first check that user has registered for some sections
+            // If not, direct them to settings page to start registering for courses
+            Realm realm = Realm.getDefaultInstance();
+            boolean noRegisteredSections = realm.allObjects(Section.class).isEmpty();
+            if (noRegisteredSections) {
+                currentSelectedPosition = 2;
+            }
+            realm.close();
         }
 
         // Select either the default item (0) or the last selected item.

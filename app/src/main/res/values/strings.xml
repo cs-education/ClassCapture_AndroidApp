@@ -14,5 +14,14 @@
 
     <string name="api_base_url">http://classcapture.herokuapp.com</string>
 
+    <string name="device_id_header">consumer-device-id</string>
+
+    <string name="uploading">Uploading Recording</string>
+    <string name="upload_success">Finished Upload</string>
+    <string name="upload_error">There was an error while uploading</string>
+
+    <string name="loading_sections">Loading Sections</string>
+    <string name="waiting_message">Please wait...</string>
+
     <string name="hello_blank_fragment">Hello blank fragment</string>
 </resources>
