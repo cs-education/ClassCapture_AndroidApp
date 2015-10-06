@@ -1,4 +1,4 @@
-package com.classtranscribe.classcapture.views.activities;
+package com.classtranscribe.classcapture.controllers.activities;
 
 import android.content.Intent;
 import android.net.Uri;
@@ -12,12 +12,16 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
 
+import com.alexbbb.uploadservice.UploadService;
 import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.models.Recording;
-import com.classtranscribe.classcapture.views.fragments.NavigationDrawerFragment;
-import com.classtranscribe.classcapture.views.fragments.RecordingsFragment;
-import com.classtranscribe.classcapture.views.fragments.VideoCaptureFragment;
+import com.classtranscribe.classcapture.controllers.fragments.NavigationDrawerFragment;
+import com.classtranscribe.classcapture.controllers.fragments.RecordingsFragment;
+import com.classtranscribe.classcapture.controllers.fragments.SettingsFragment;
+import com.classtranscribe.classcapture.controllers.fragments.VideoCaptureFragment;
 
+import io.realm.Realm;
+import io.realm.RealmConfiguration;
 import retrofit.RetrofitError;
 
 
@@ -41,10 +45,18 @@ public class MainActivity extends ActionBarActivity
      */
     private VideoCaptureFragment.VideoCaptureListener captureListener;
 
+    Realm defaultRealm;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Set up info for libraries
+        this.setupRealm();
+        UploadService.NAMESPACE = this.getPackageName(); // Sets so service can know which app to direct updates to...i think
+
         setContentView(R.layout.activity_main);
+
 
         navigationDrawerFragment = (NavigationDrawerFragment)
                 getSupportFragmentManager().findFragmentById(R.id.navigation_drawer);
@@ -76,19 +88,10 @@ public class MainActivity extends ActionBarActivity
                 return RecordingsFragment.newInstance();
             case 1:
                 return VideoCaptureFragment.newInstance();
+            case 2:
+                return SettingsFragment.newInstance();
             default:
                 return RecordingsFragment.newInstance();
-        }
-    }
-
-    public void onSectionAttached(int number) {
-        switch (number) {
-            case 1:
-                title = getString(R.string.title_section1);
-                break;
-            case 2:
-                title = getString(R.string.title_section2);
-                break;
         }
     }
 
@@ -144,7 +147,6 @@ public class MainActivity extends ActionBarActivity
 
     @Override
     public void onVideoCaptureUploadSuccess(Recording recording) {
-        Toast.makeText(this, "Video Upload Succeeded", Toast.LENGTH_SHORT).show();
     }
 
     @Override
@@ -167,6 +169,16 @@ public class MainActivity extends ActionBarActivity
         } else {
             System.err.println("Error on Video Capture: requestCode " + requestCode + "\tresultCode: " + resultCode);
         }
+    }
+
+    /**
+     * Sets Default realm config and sets this.defaultRealm
+     */
+    private void setupRealm() {
+        RealmConfiguration.Builder configBuilder = new RealmConfiguration.Builder(this);
+        RealmConfiguration defaultConfig = configBuilder.build();
+        Realm.setDefaultConfiguration(defaultConfig);
+        this.defaultRealm = Realm.getDefaultInstance();
     }
 
 }

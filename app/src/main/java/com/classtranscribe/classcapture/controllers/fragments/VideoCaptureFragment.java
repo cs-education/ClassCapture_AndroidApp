@@ -1,6 +1,7 @@
-package com.classtranscribe.classcapture.views.fragments;
+package com.classtranscribe.classcapture.controllers.fragments;
 
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -10,15 +11,21 @@ import android.support.v4.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.Spinner;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.widget.VideoView;
 
 import com.classtranscribe.classcapture.R;
+import com.classtranscribe.classcapture.adapters.SectionSpinnerAdapter;
 import com.classtranscribe.classcapture.models.Recording;
-import com.classtranscribe.classcapture.views.activities.MainActivity;
+import com.classtranscribe.classcapture.models.Section;
+import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import retrofit.Callback;
@@ -33,7 +40,11 @@ import retrofit.client.Response;
  * Use the {@link VideoCaptureFragment#newInstance} factory method to
  * create an instance of this fragment.
  */
-public class VideoCaptureFragment extends Fragment {
+public class VideoCaptureFragment extends Fragment implements AdapterView.OnItemSelectedListener {
+
+    // Static UI Text
+    private final static String UPLOAD_DIALOG_TITLE   = "Uploading Recording";
+    private final static String UPLOAD_DIALOG_MESSAGE = "Just a sec...";
 
     // Fragment Bundle Argument parameters
     private static final String VIDEO_HAS_BEEN_CAPTURED = "videoCaptured";
@@ -45,10 +56,15 @@ public class VideoCaptureFragment extends Fragment {
     VideoView videoView;
     TextView recordingDurationTextView;
     Button uploadButton;
+    Spinner sectionSpinner;
 
     // Instance variables for recording
     Recording capturedRecording;
     boolean hasBeenInitialized;
+
+    // Section to be attached with recording
+    Section chosenSection;
+    private SimpleDateFormat dateFormat = new SimpleDateFormat("h:mm:ss a"); // format with which start and end time of video will be displayed
 
     /**
      * Use this factory method to create a new instance of
@@ -101,6 +117,7 @@ public class VideoCaptureFragment extends Fragment {
         this.videoView = (VideoView) this.getView().findViewById(R.id.video_view);
         this.recordingDurationTextView = (TextView) this.getView().findViewById(R.id.recording_duration_textview);
         this.uploadButton = (Button) this.getView().findViewById(R.id.upload_button);
+        this.sectionSpinner = (Spinner) this.getView().findViewById(R.id.section_spinner);
 
         // init listeners
         this.uploadButton.setOnClickListener(new View.OnClickListener() {
@@ -109,11 +126,37 @@ public class VideoCaptureFragment extends Fragment {
                 VideoCaptureFragment.this.onUploadClicked();
             }
         });
+
+        // Init section spinner with User's registered sections
+        // All sections stored in Realm DB are sections that user has registered for
+        // Apparently, running queries on UI thread isn't too big of a deal:
+        //  http://stackoverflow.com/questions/27805580/realm-io-and-asynchronous-queries
+        // Given our data-set will be really small anyways, I think its worth just doing on UI thread for cleanliness
+        this.sectionSpinner.setAdapter(new SectionSpinnerAdapter(getActivity()));
+        this.sectionSpinner.setOnItemSelectedListener(this);
+    }
+
+    // Called when a section is selected from the spinner
+    @Override
+    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+        this.chosenSection = (Section) this.sectionSpinner.getItemAtPosition(position);
+        this.uploadButton.setEnabled(true);
+    }
+
+    @Override
+    public void onNothingSelected(AdapterView<?> parent) {
+        this.chosenSection = null;
+        this.uploadButton.setEnabled(false);
     }
 
     public void onUploadClicked() {
         boolean videoHasBeenCaptured = this.getArguments().getBoolean(VIDEO_HAS_BEEN_CAPTURED, false);
         if (videoHasBeenCaptured) {
+
+            if (this.chosenSection == null) {
+                Toast.makeText(getActivity(), "Please choose a section for this recording", Toast.LENGTH_SHORT).show();
+                return;
+            }
 
             if (this.capturedRecording.startTime == null) {
                 System.err.println("capturedRecording.startTime is null");
@@ -123,14 +166,23 @@ public class VideoCaptureFragment extends Fragment {
                 System.err.println("capturedRecording.endTime is null");
             }
 
+            // First, disable the upload button so video cant be uploaded twice
+            uploadButton.setEnabled(false);
+
+            // While the user is waiting for the video to upload, make sure to show a progress dialog
+            final ProgressDialog progress = ProgressDialog.show(VideoCaptureFragment.this.getActivity(), UPLOAD_DIALOG_TITLE, UPLOAD_DIALOG_MESSAGE, true);
+            progress.setCancelable(false); // Dialog will be modal
+
             this.capturedRecording.uploadRecording(this.getActivity(), new Callback<Recording>() {
                 @Override
                 public void success(Recording recording, Response response) {
                     VideoCaptureFragment.this.listener.onVideoCaptureUploadSuccess(recording);
+                    progress.dismiss(); // Finally dismiss the progress dialog
                 }
 
                 @Override
                 public void failure(RetrofitError error) {
+                    //For Debugging only: Print out the body of the response
                     System.err.println(error);
                     System.err.println("Body: " + error.getBody());
                     byte[] bodyBuffer = new byte[(int) error.getResponse().getBody().length()];
@@ -142,6 +194,8 @@ public class VideoCaptureFragment extends Fragment {
                     System.err.println(new String(bodyBuffer));
 
                     VideoCaptureFragment.this.listener.onVideoCaptureUploadFailure(error);
+                    progress.dismiss(); // Finally dismiss the progress dialog
+                    uploadButton.setEnabled(true); // If the upload failed for some reason, allow them to try again
                 }
             });
         }
@@ -172,7 +226,7 @@ public class VideoCaptureFragment extends Fragment {
 
                     // Set end time of capturedRecording to current time
                     Context currContext = VideoCaptureFragment.this.getActivity();
-                    VideoCaptureFragment.this.capturedRecording = new Recording(currContext, videoUri);
+                    VideoCaptureFragment.this.capturedRecording = new Recording(currContext, videoUri, VideoCaptureFragment.this.chosenSection.getId());
 
                     // Set metadata views appropriately
                     VideoCaptureFragment.this.updateRecordingDurationTextView();
@@ -195,7 +249,11 @@ public class VideoCaptureFragment extends Fragment {
             throw new IllegalStateException("Recording Object isn't populated with duration metadata");
         }
 
-        String text = start + " to " + end;
+        // Format according to formatter declared above
+        String startStr = this.dateFormat.format(start);
+        String endStr   = this.dateFormat.format(end);
+
+        String text = startStr + " to " + endStr;
         this.recordingDurationTextView.setText(text);
     }
 

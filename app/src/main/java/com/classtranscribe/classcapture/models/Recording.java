@@ -1,15 +1,25 @@
 package com.classtranscribe.classcapture.models;
 
 import android.content.Context;
+import android.content.Intent;
 import android.database.Cursor;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.provider.MediaStore;
+import android.widget.Toast;
 
+import com.alexbbb.uploadservice.ContentType;
+import com.alexbbb.uploadservice.UploadRequest;
+import com.alexbbb.uploadservice.UploadService;
 import com.classtranscribe.classcapture.R;
-import com.classtranscribe.classcapture.controllers.adapters.RecordingServiceProvider;
+import com.classtranscribe.classcapture.controllers.activities.MainActivity;
+import com.classtranscribe.classcapture.services.RecordingServiceProvider;
+import com.classtranscribe.classcapture.services.RecordingService;
+import com.classtranscribe.classcapture.services.SettingsService;
+import com.classtranscribe.classcapture.services.UploadServiceReceiver;
 
 import java.io.File;
+import java.net.MalformedURLException;
 import java.util.Date;
 
 import retrofit.Callback;
@@ -19,6 +29,7 @@ import retrofit.mime.TypedFile;
 
 /**
  * Created by sourabhdesai on 6/19/15.
+ * Recordings will not be saved in Realm, they need to be retrieved from backend via Retrofit HTTP Client Methods
  */
 
 /**
@@ -34,10 +45,13 @@ import retrofit.mime.TypedFile;
  */
 public class Recording {
 
+    private static final String VIDEO_MIME_TYPE = "video/mp4";
+
     public Date startTime;
     public Date endTime;
     public String filename;
     public long id;
+    public long section; // Id for section that this recording is for
     public Date createdAt;
     public Date updatedAt;
 
@@ -47,13 +61,15 @@ public class Recording {
         // does nothing
     }
 
-    public Recording(Date startTime, Date endTime) {
+    public Recording(Date startTime, Date endTime, long section) {
         this.startTime = startTime;
         this.endTime = endTime;
+        this.section = section;
     }
 
-    public Recording(Context context, Uri videoUri) {
+    public Recording(Context context, Uri videoUri, long section) {
         this.videoUri = videoUri;
+        this.section = section;
 
         // Query MediaStore for metadata on retrieved video.
         // Set instance variables according to metadata
@@ -145,21 +161,43 @@ public class Recording {
             public void success(final Recording recording, final Response newRecordingResponse) {
                 // Created new recording
                 // Now upload the video recording with the filename given by the Recording in the response
-                System.err.println("videoUri.getPath()==" + getFilePathFromURI(context, Recording.this.videoUri));
-                File videoFile = new File(getFilePathFromURI(context, Recording.this.videoUri));
-                TypedFile typedVideoFile = new TypedFile("video/mp4", videoFile);
-                // Upload the video
-                recordingService.uploadRecordingVideo(recording.filename, typedVideoFile, new Callback<Object>() {
-                    @Override
-                    public void success(Object o, Response uploadVidResponse) {
-                        cb.success(recording, newRecordingResponse);
-                    }
+                // Upload the video in a service
+                final String videoFilePath = getFilePathFromURI(context, Recording.this.videoUri);
+                final String uploadID = String.valueOf(recording.id); // Can just make upload ID be the ID of the recording
+                final String uploadURL = recording.getVideoURL(context);
+                final String deviceID = SettingsService.getDeviceID(context); // to add to header
+                final String deviceIDHeader = context.getString(R.string.device_id_header);
+                final String videoParamName = context.getString(R.string.video_upload_tag);
 
-                    @Override
-                    public void failure(RetrofitError error) {
-                        cb.failure(error);
-                    }
-                });
+                UploadRequest request = new UploadRequest(context, uploadID, uploadURL);
+                request.addHeader(deviceIDHeader, deviceID); // add header, currently used on backend for security validation
+                request.addFileToUpload(videoFilePath, videoParamName, recording.filename, VIDEO_MIME_TYPE);
+
+                // Messages to display upon various events during upload
+                request.setNotificationConfig(R.drawable.ic_launcher, context.getString(R.string.app_name),
+                        context.getString(R.string.uploading), context.getString(R.string.upload_success),
+                        context.getString(R.string.upload_error), false);
+
+                // set the intent to perform when the user taps on the upload notification.
+                // currently tested only with intents that launches an activity
+                // if you comment this line, no action will be performed when the user taps on the notification
+                Intent notifClickIntent = new Intent(context, MainActivity.class);
+                request.setNotificationClickIntent(notifClickIntent);
+
+                // set the maximum number of automatic upload retries on error
+                request.setMaxRetries(1);
+
+                // register a broadcast receiver for the request
+                UploadServiceReceiver receiver = new UploadServiceReceiver(uploadID, videoFilePath);
+                receiver.register(context);
+                // send the request
+                try {
+                    UploadService.startUpload(request);
+                    cb.success(recording, newRecordingResponse); // bubble up success via cb
+                } catch (MalformedURLException e) {
+                    e.printStackTrace();
+                    Toast.makeText(context, context.getString(R.string.upload_error), Toast.LENGTH_SHORT).show();
+                }
             }
 
             @Override
@@ -169,8 +207,17 @@ public class Recording {
         });
     }
 
+    /**
+     * Will get URL to post the video for this recording to
+     * @param context context of the application in its current state
+     * @return HTTP url for video upload of this recording
+     */
     public String getVideoURL(Context context) {
-        return context.getString(R.string.api_base_url) + "/getVideo/" + this.filename;
+        if (this.filename == null) {
+            throw new IllegalStateException("Recording that tried to be uploaded doesn't have a filename");
+        }
+
+        return context.getString(R.string.api_base_url) + "/video/" + this.filename;
     }
 
     /**

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="main_blue" type="color">#18273B</item>
+    <item name="main_orange" type="color">#D78F61</item>
+    <item name="neutral" type="color">#5C6D70</item>
+    <item name="positive" type="color">#6B9080</item>
+    <item name="negative" type="color">#B71066</item>
+</resources>

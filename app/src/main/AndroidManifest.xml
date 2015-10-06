@@ -1,11 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.classtranscribe.classcapture" >
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.classtranscribe.classcapture">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <uses-feature android:name="android.hardware.camera" />
 
@@ -15,7 +18,7 @@
         android:label="@string/app_name"
         android:theme="@style/AppTheme" >
         <activity
-            android:name=".views.activities.MainActivity"
+            android:name=".controllers.activities.MainActivity"
             android:label="@string/app_name" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -23,6 +26,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name="com.alexbbb.uploadservice.UploadService"
+            android:enabled="true"
+            tools:replace="android:exported"
+            android:exported="false" >
+            <intent-filter>
+                <action android:name="com.classtranscribe.classcapture.uploadservice.action.upload"/>
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>
