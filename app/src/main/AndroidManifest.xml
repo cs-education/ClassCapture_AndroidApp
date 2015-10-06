@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.classtranscribe.classcapture" >
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.classtranscribe.classcapture">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
@@ -25,15 +26,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-    </application>
 
-    <service
-        android:name="com.alexbbb.uploadservice.UploadService"
-        android:enabled="true"
-        android:exported="false" >
-        <intent-filter>
-            <action android:name="com.classtranscribe.classcapture.uploadservice.action.upload"/>
-        </intent-filter>
-    </service>
+        <service
+            android:name="com.alexbbb.uploadservice.UploadService"
+            android:enabled="true"
+            tools:replace="android:exported"
+            android:exported="false" >
+            <intent-filter>
+                <action android:name="com.classtranscribe.classcapture.uploadservice.action.upload"/>
+            </intent-filter>
+        </service>
+    </application>
 
 </manifest>
