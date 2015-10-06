@@ -146,15 +146,15 @@ public class Recording {
     /**
      * Given a context, and video uri, will create a new Recording object on the backend
      * and attach the given video to it.
-     * @param context
+     * @param mainActivity
      * @param cb
      */
-    public void uploadRecording(final Context context, final Callback<Recording> cb) {
+    public void uploadRecording(final MainActivity mainActivity, final Callback<Recording> cb) {
         if (!this.isValidForUpload()) {
             throw new IllegalStateException("Recording is not valid for upload: " + this);
         }
 
-        final RecordingService recordingService = RecordingServiceProvider.getInstance(context);
+        final RecordingService recordingService = RecordingServiceProvider.getInstance(mainActivity);
 
         recordingService.newRecording(this, new Callback<Recording>() {
             @Override
@@ -162,26 +162,26 @@ public class Recording {
                 // Created new recording
                 // Now upload the video recording with the filename given by the Recording in the response
                 // Upload the video in a service
-                final String videoFilePath = getFilePathFromURI(context, Recording.this.videoUri);
+                final String videoFilePath = getFilePathFromURI(mainActivity, Recording.this.videoUri);
                 final String uploadID = String.valueOf(recording.id); // Can just make upload ID be the ID of the recording
-                final String uploadURL = recording.getVideoURL(context);
-                final String deviceID = SettingsService.getDeviceID(context); // to add to header
-                final String deviceIDHeader = context.getString(R.string.device_id_header);
-                final String videoParamName = context.getString(R.string.video_upload_tag);
+                final String uploadURL = recording.getVideoURL(mainActivity);
+                final String deviceID = SettingsService.getDeviceID(mainActivity); // to add to header
+                final String deviceIDHeader = mainActivity.getString(R.string.device_id_header);
+                final String videoParamName = mainActivity.getString(R.string.video_upload_tag);
 
-                UploadRequest request = new UploadRequest(context, uploadID, uploadURL);
+                UploadRequest request = new UploadRequest(mainActivity, uploadID, uploadURL);
                 request.addHeader(deviceIDHeader, deviceID); // add header, currently used on backend for security validation
                 request.addFileToUpload(videoFilePath, videoParamName, recording.filename, VIDEO_MIME_TYPE);
 
                 // Messages to display upon various events during upload
-                request.setNotificationConfig(R.drawable.ic_launcher, context.getString(R.string.app_name),
-                        context.getString(R.string.uploading), context.getString(R.string.upload_success),
-                        context.getString(R.string.upload_error), false);
+                request.setNotificationConfig(R.drawable.ic_launcher, mainActivity.getString(R.string.app_name),
+                        mainActivity.getString(R.string.uploading), mainActivity.getString(R.string.upload_success),
+                        mainActivity.getString(R.string.upload_error), false);
 
                 // set the intent to perform when the user taps on the upload notification.
                 // currently tested only with intents that launches an activity
                 // if you comment this line, no action will be performed when the user taps on the notification
-                Intent notifClickIntent = new Intent(context, MainActivity.class);
+                Intent notifClickIntent = new Intent(mainActivity, MainActivity.class);
                 request.setNotificationClickIntent(notifClickIntent);
 
                 // set the maximum number of automatic upload retries on error
@@ -189,14 +189,14 @@ public class Recording {
 
                 // register a broadcast receiver for the request
                 UploadServiceReceiver receiver = new UploadServiceReceiver(uploadID, videoFilePath);
-                receiver.register(context);
+                receiver.register(mainActivity);
                 // send the request
                 try {
                     UploadService.startUpload(request);
                     cb.success(recording, newRecordingResponse); // bubble up success via cb
                 } catch (MalformedURLException e) {
                     e.printStackTrace();
-                    Toast.makeText(context, context.getString(R.string.upload_error), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(mainActivity, mainActivity.getString(R.string.upload_error), Toast.LENGTH_SHORT).show();
                 }
             }
 

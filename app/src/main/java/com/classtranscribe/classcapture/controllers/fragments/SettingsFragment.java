@@ -13,7 +13,10 @@ import android.widget.ListView;
 
 import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.adapters.SectionListAdapter;
+import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Section;
+import com.google.android.gms.analytics.HitBuilders;
+import com.google.android.gms.analytics.Tracker;
 
 import java.util.List;
 
@@ -65,6 +68,14 @@ public class SettingsFragment extends Fragment implements AdapterView.OnItemClic
         return inflater.inflate(R.layout.fragment_settings, container, false);
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
+        tracker.setScreenName(this.getString(R.string.settings_screen_name));
+        tracker.send(new HitBuilders.ScreenViewBuilder().build());
+    }
+
     public void initializeFragment () {
         this.sectionsListView = (ListView) this.getView().findViewById(R.id.section_listview);
         this.loadingDialog = new ProgressDialog(this.getActivity());
@@ -74,7 +85,7 @@ public class SettingsFragment extends Fragment implements AdapterView.OnItemClic
         this.loadingDialog.show();
 
         // Set adapter for the section list view, will retrieve section info from backend internally
-        SectionListAdapter sectionAdapter = new SectionListAdapter(this.getActivity());
+        SectionListAdapter sectionAdapter = new SectionListAdapter((MainActivity) this.getActivity());
         sectionAdapter.setOnSectionsLoadedListener(this); // set listener to be notified when loading stops and progressdialog can be dismissed
         this.sectionsListView.setAdapter(sectionAdapter); // will generate views and subview for explistview
 
@@ -87,6 +98,8 @@ public class SettingsFragment extends Fragment implements AdapterView.OnItemClic
      * Checks Realm DB if the section exists in the DB, if it does then its registered
      * If its registered, deregister it
      * if its not, register it
+     *
+     * Also sends registration/deregistration events to Google Analytics
      */
     @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
@@ -99,10 +112,14 @@ public class SettingsFragment extends Fragment implements AdapterView.OnItemClic
         boolean sectionIsRegistered = savedSection != null;
 
         if (sectionIsRegistered) {
+            // Deregister the section
+            this.trackDeregistrationEvent(savedSection);
             realm.beginTransaction();
             savedSection.removeFromRealm();
             realm.commitTransaction();
         } else {
+            // Register the section
+            this.trackRegistrationEvent(clickedSection);
             realm.beginTransaction();
             realm.copyToRealm(clickedSection);
             realm.commitTransaction();
@@ -111,6 +128,26 @@ public class SettingsFragment extends Fragment implements AdapterView.OnItemClic
         realm.close();
 
         adapter.notifyDataSetChanged(); // update views
+    }
+
+    private void trackRegistrationEvent(Section section) {
+        this.trackSectionEvent(section, true);
+    }
+
+    private void trackDeregistrationEvent(Section section) {
+        this.trackSectionEvent(section, false);
+    }
+
+    private void trackSectionEvent(Section section, boolean isRegistering) {
+        int actionStringResourceID = isRegistering ? R.string.register_section_action_name : R.string.deregister_section_action_name;
+        String sectionStr =  section.getCourse().getDepartment() + " " + section.getCourse().getNumber() + ": " + section.getName();
+        Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
+        tracker.send(new HitBuilders.EventBuilder()
+                .setCategory(this.getString(R.string.section_category_name))
+                .setAction(this.getString(actionStringResourceID))
+                .setLabel(sectionStr)
+                .setValue(section.getId())
+                .build());
     }
 
     @Override

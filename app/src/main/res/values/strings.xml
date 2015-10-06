@@ -12,7 +12,7 @@
 
     <string name="video_upload_tag">video</string>
 
-    <string name="api_base_url">http://classcapture.herokuapp.com</string>
+    <string name="api_base_url">http://classcapture.cs.illinois.edu/api</string>
 
     <string name="device_id_header">consumer-device-id</string>
 
@@ -24,4 +24,20 @@
     <string name="waiting_message">Please wait...</string>
 
     <string name="hello_blank_fragment">Hello blank fragment</string>
+
+    <!--The following strings are to be used for google analytics events etc.-->
+    <string name="main_activity_screen_name">MainActivityScreen</string>
+    <string name="recording_screen_name">RecordingFragmentScreen</string>
+    <string name="video_capture_screen_name">VideoCaptureFragmentScreen</string>
+    <string name="settings_screen_name">SettingsFragmentScreen</string>
+    <string name="nav_drawer_screen_name">NavDrawerFragmentScreen</string>
+
+    <string name="recording_category_name">RecordingCategory</string>
+    <string name="watch_recording_action_name">WatchAction</string>
+    <string name="upload_recording_action_name">UploadAction</string>
+
+    <string name="section_category_name">SectionCategory</string>
+    <string name="register_section_action_name">RegisterAction</string>
+    <string name="deregister_section_action_name">DeregisterAction</string>
+
 </resources>

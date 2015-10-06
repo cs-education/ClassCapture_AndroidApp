@@ -22,8 +22,11 @@ import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
 import com.classtranscribe.classcapture.R;
+import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Course;
 import com.classtranscribe.classcapture.models.Section;
+import com.google.android.gms.analytics.HitBuilders;
+import com.google.android.gms.analytics.Tracker;
 
 import io.realm.Realm;
 
@@ -92,6 +95,14 @@ public class NavigationDrawerFragment extends Fragment {
 
         // Select either the default item (0) or the last selected item.
         selectItem(currentSelectedPosition);
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
+        tracker.setScreenName(this.getString(R.string.nav_drawer_screen_name));
+        tracker.send(new HitBuilders.ScreenViewBuilder().build());
     }
 
     @Override

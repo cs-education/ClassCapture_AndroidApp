@@ -8,6 +8,7 @@ import android.view.ViewGroup;
 import android.widget.CheckedTextView;
 import android.widget.ListAdapter;
 
+import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Course;
 import com.classtranscribe.classcapture.models.Section;
 import com.classtranscribe.classcapture.services.SectionService;
@@ -26,15 +27,15 @@ import retrofit.client.Response;
  */
 public class SectionListAdapter implements ListAdapter {
 
-    private final Context context;
+    private final MainActivity context;
     private DataSetObserver observer;
     private List<Section> sections;
     // Keep track of whether the section at a particular position of the list has been updated locally from backend request
     private boolean[] updatedSectionAt;
     private OnSectionsLoadedListener onLoadedListener;
 
-    public SectionListAdapter(Context context) {
-        this.context = context;
+    public SectionListAdapter(MainActivity mainActivity) {
+        this.context = mainActivity;
         this.sections = new ArrayList<Section>();
         this.updatedSectionAt = new boolean[0];
         this.onLoadedListener = null;

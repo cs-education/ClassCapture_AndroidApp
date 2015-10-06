@@ -19,6 +19,9 @@ import com.classtranscribe.classcapture.controllers.fragments.NavigationDrawerFr
 import com.classtranscribe.classcapture.controllers.fragments.RecordingsFragment;
 import com.classtranscribe.classcapture.controllers.fragments.SettingsFragment;
 import com.classtranscribe.classcapture.controllers.fragments.VideoCaptureFragment;
+import com.google.android.gms.analytics.GoogleAnalytics;
+import com.google.android.gms.analytics.HitBuilders;
+import com.google.android.gms.analytics.Tracker;
 
 import io.realm.Realm;
 import io.realm.RealmConfiguration;
@@ -46,6 +49,7 @@ public class MainActivity extends ActionBarActivity
     private VideoCaptureFragment.VideoCaptureListener captureListener;
 
     Realm defaultRealm;
+    private Tracker defaultTracker;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,6 +70,24 @@ public class MainActivity extends ActionBarActivity
         navigationDrawerFragment.setUp(
                 R.id.navigation_drawer,
                 (DrawerLayout) findViewById(R.id.drawer_layout));
+    }
+
+    synchronized public Tracker getDefaultTracker() {
+        if (this.defaultTracker == null) {
+            GoogleAnalytics analytics = GoogleAnalytics.getInstance(this);
+            // To enable debug logging use: adb shell setprop log.tag.GAv4 DEBUG
+            this.defaultTracker = analytics.newTracker(R.xml.global_tracker);
+        }
+
+        return this.defaultTracker;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        Tracker tracker = this.getDefaultTracker();
+        tracker.setScreenName(this.getString(R.string.main_activity_screen_name));
+        tracker.send(new HitBuilders.ScreenViewBuilder().build());
     }
 
     @Override
