@@ -1,6 +1,5 @@
 package com.classtranscribe.classcapture.adapters;
 
-import android.content.Context;
 import android.database.DataSetObserver;
 import android.util.Log;
 import android.view.View;
