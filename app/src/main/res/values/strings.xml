@@ -19,11 +19,10 @@
     <string name="uploading">Uploading Recording</string>
     <string name="upload_success">Finished Upload</string>
     <string name="upload_error">There was an error while uploading</string>
+    <string name="go_to_settings_prompt">Please Register for a Section</string>
 
     <string name="loading_sections">Loading Sections</string>
     <string name="waiting_message">Please wait...</string>
-
-    <string name="hello_blank_fragment">Hello blank fragment</string>
 
     <!--The following strings are to be used for google analytics events etc.-->
     <string name="main_activity_screen_name">MainActivityScreen</string>
@@ -40,4 +39,5 @@
     <string name="register_section_action_name">RegisterAction</string>
     <string name="deregister_section_action_name">DeregisterAction</string>
 
+    <string name="video_upload_realm_db_name">VideoUploadRealmInstance</string>
 </resources>

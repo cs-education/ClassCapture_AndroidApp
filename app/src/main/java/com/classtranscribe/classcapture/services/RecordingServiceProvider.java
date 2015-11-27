@@ -1,9 +1,8 @@
 package com.classtranscribe.classcapture.services;
 
+import android.content.Context;
+
 import com.classtranscribe.classcapture.R;
-import com.classtranscribe.classcapture.controllers.activities.MainActivity;
-import com.google.android.gms.analytics.HitBuilders;
-import com.google.android.gms.analytics.Tracker;
 import com.google.gson.ExclusionStrategy;
 import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
@@ -13,14 +12,13 @@ import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
+import com.squareup.okhttp.OkHttpClient;
 
 import java.lang.reflect.Type;
 
 import io.realm.RealmObject;
-import retrofit.ErrorHandler;
-import retrofit.RestAdapter;
-import retrofit.RetrofitError;
-import retrofit.converter.GsonConverter;
+import retrofit.GsonConverterFactory;
+import retrofit.Retrofit;
 
 /**
  * Created by sourabhdesai on 6/23/15.
@@ -31,40 +29,25 @@ import retrofit.converter.GsonConverter;
 public class RecordingServiceProvider {
     private static RecordingService ourInstance = null;
 
-    public static RecordingService getInstance(final MainActivity mainActivity) {
+    public static RecordingService getInstance(Context context) {
         if (ourInstance != null) {
             return ourInstance;
         }
 
         // GSON converter with DateTime Type Adapter
-        Gson gson = new GsonBuilder()
-                .setDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
-                // Realm docs say this: https://realm.io/docs/java/latest/#retrofit
-                .setExclusionStrategies(new ExclusionStrategy() {
-                    @Override
-                    public boolean shouldSkipField(FieldAttributes f) {
-                        return f.getDeclaringClass().equals(RealmObject.class);
-                    }
+        Gson gson = getRecordingGson();
 
-                    @Override
-                    public boolean shouldSkipClass(Class<?> clazz) {
-                        return false;
-                    }
-                })
-                // converts long course field into the course's ID as a long, even though its received as a JSON course
-                .registerTypeAdapter(Long.TYPE, new LongIDDeserializer())
-                .create();
+        OkHttpClient client = new OkHttpClient();
+        client.interceptors().add(new DeviceIDRequestInterceptor(context));
 
         // Create rest adapter from RetroFit. Initialize endpoint
-        RestAdapter restAdapter = new RestAdapter.Builder()
-                .setEndpoint(mainActivity.getString(R.string.api_base_url))
-                .setRequestInterceptor(new DeviceIDRequestInterceptor(mainActivity))
-                // Want to send request errors to google analytics
-                .setErrorHandler(new RetrofitErrorHandler(mainActivity, "Recording"))
-                .setConverter(new GsonConverter(gson))
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(context.getString(R.string.api_base_url))
+                .client(client)
+                .addConverterFactory(GsonConverterFactory.create(gson))
                 .build();
 
-        ourInstance = restAdapter.create(RecordingService.class);
+        ourInstance = retrofit.create(RecordingService.class);
 
         return ourInstance;
     }
@@ -83,5 +66,27 @@ public class RecordingServiceProvider {
 
             throw new IllegalStateException("Got JSON Element with unexpected format");
         }
+    }
+
+    public static Gson getRecordingGson() {
+        Gson gson = new GsonBuilder()
+                .setDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+                        // Realm docs say this: https://realm.io/docs/java/latest/#retrofit
+                .setExclusionStrategies(new ExclusionStrategy() {
+                    @Override
+                    public boolean shouldSkipField(FieldAttributes f) {
+                        return f.getDeclaringClass().equals(RealmObject.class);
+                    }
+
+                    @Override
+                    public boolean shouldSkipClass(Class<?> clazz) {
+                        return false;
+                    }
+                })
+                        // converts long course field into the course's ID as a long, even though its received as a JSON course
+                .registerTypeAdapter(Long.TYPE, new LongIDDeserializer())
+                .create();
+
+        return gson;
     }
 }

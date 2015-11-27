@@ -3,19 +3,15 @@ package com.classtranscribe.classcapture.services;
 import android.content.Context;
 
 import com.classtranscribe.classcapture.R;
-import com.classtranscribe.classcapture.controllers.activities.MainActivity;
-import com.google.android.gms.analytics.HitBuilders;
-import com.google.android.gms.analytics.Tracker;
 import com.google.gson.ExclusionStrategy;
 import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.squareup.okhttp.OkHttpClient;
 
 import io.realm.RealmObject;
-import retrofit.ErrorHandler;
-import retrofit.RestAdapter;
-import retrofit.RetrofitError;
-import retrofit.converter.GsonConverter;
+import retrofit.GsonConverterFactory;
+import retrofit.Retrofit;
 
 /**
  * Created by sourabhdesai on 9/17/15.
@@ -26,7 +22,7 @@ import retrofit.converter.GsonConverter;
 public class SectionServiceProvider {
     private static SectionService ourInstance = null;
 
-    public static SectionService getInstance(final MainActivity mainActivity) {
+    public static SectionService getInstance(Context context) {
         if (ourInstance != null) {
             return ourInstance;
         }
@@ -48,16 +44,17 @@ public class SectionServiceProvider {
                 })
                 .create();
 
+        OkHttpClient client = new OkHttpClient();
+        client.interceptors().add(new DeviceIDRequestInterceptor(context));
+
         // Create rest adapter from RetroFit. Initialize endpoint
-        RestAdapter restAdapter = new RestAdapter.Builder()
-                .setEndpoint(mainActivity.getString(R.string.api_base_url))
-                .setRequestInterceptor(new DeviceIDRequestInterceptor(mainActivity))
-                // Want to send request errors to google analytics
-                .setErrorHandler(new RetrofitErrorHandler(mainActivity, "Section"))
-                .setConverter(new GsonConverter(gson))
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(context.getString(R.string.api_base_url))
+                .client(client)
+                .addConverterFactory(GsonConverterFactory.create(gson))
                 .build();
 
-        ourInstance = restAdapter.create(SectionService.class);
+        ourInstance = retrofit.create(SectionService.class);
 
         return ourInstance;
     }

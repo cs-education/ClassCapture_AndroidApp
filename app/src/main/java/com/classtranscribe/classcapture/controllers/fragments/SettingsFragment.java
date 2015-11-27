@@ -121,7 +121,7 @@ public class SettingsFragment extends Fragment implements AdapterView.OnItemClic
             // Register the section
             this.trackRegistrationEvent(clickedSection);
             realm.beginTransaction();
-            realm.copyToRealm(clickedSection);
+            realm.copyToRealmOrUpdate(clickedSection);
             realm.commitTransaction();
         }
 

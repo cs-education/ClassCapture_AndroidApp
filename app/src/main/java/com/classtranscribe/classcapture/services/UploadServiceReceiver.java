@@ -4,6 +4,8 @@ import android.util.Log;
 
 import com.alexbbb.uploadservice.AbstractUploadServiceReceiver;
 import com.alexbbb.uploadservice.UploadService;
+import com.classtranscribe.classcapture.controllers.fragments.VideoCaptureFragment;
+import com.classtranscribe.classcapture.models.Recording;
 
 import java.io.File;
 
@@ -12,13 +14,14 @@ import java.io.File;
  * Will handle events and do some post-upload cleanup for a single specified upload
  */
 public class UploadServiceReceiver extends AbstractUploadServiceReceiver {
+    private static final String LOG_TAG = UploadServiceReceiver.class.getName();
 
-    final String filepath; // file that is being uploaded
-    final String uploadID; // the specific upload that this receiver is for
+    Recording recording;
+    VideoCaptureFragment.OnFragmentInteractionListener listener;
 
-    public UploadServiceReceiver(String uploadID, String filepath) {
-        this.filepath = filepath;
-        this.uploadID = uploadID;
+    public UploadServiceReceiver(Recording recording, VideoCaptureFragment.OnFragmentInteractionListener listener) {
+        this.recording = recording;
+        this.listener = listener;
     }
 
 
@@ -28,23 +31,31 @@ public class UploadServiceReceiver extends AbstractUploadServiceReceiver {
 
     @Override
     public void onError(String uploadId, Exception exception) {
+        if (!uploadId.equals(String.valueOf(this.recording.getId()))) {
+            return; // not for this specific receivers upload
+        }
+
+        this.listener.onVideoCaptureUploadFailure(exception, this.recording);
     }
 
     @Override
     public void onCompleted(String uploadId, int serverResponseCode, String serverResponseMessage) {
-        if (!uploadId.equals(this.uploadID)) {
-            return; // not for this receivers specific upload
+        if (!uploadId.equals(String.valueOf(this.recording.getId()))) {
+            return; // not for this specific receivers upload
         }
 
-        Log.d("yo!", "Upload with ID " + uploadId + "finished:");
-        Log.d("yo!", "Status: " + serverResponseCode + "\tMessage: " + serverResponseMessage);
+        Log.d(LOG_TAG, "Upload with ID " + uploadId + "finished:");
+        Log.d(LOG_TAG, "Status: " + serverResponseCode + "\tMessage: " + serverResponseMessage);
+
+        this.listener.onVideoCaptureUploadSuccess(this.recording);
+
         // In a different thread, make sure the video will be deleted if it still exists
         new Thread(new Runnable() {
             @Override
             public void run() {
-                File fileToDelete = new File(UploadServiceReceiver.this.filepath);
+                File fileToDelete = new File(UploadServiceReceiver.this.recording.getVideoFilePath());
                 if (fileToDelete.exists()) {
-                    fileToDelete.deleteOnExit();
+                    fileToDelete.delete(); // delete the file
                 }
             }
         }).start();

@@ -16,10 +16,10 @@
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@style/AppTheme" >
+        android:theme="@style/AppTheme">
         <activity
             android:name=".controllers.activities.MainActivity"
-            android:label="@string/app_name" >
+            android:label="@string/app_name">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -30,24 +30,37 @@
         <service
             android:name="com.alexbbb.uploadservice.UploadService"
             android:enabled="true"
-            tools:replace="android:exported"
-            android:exported="false" >
+            android:exported="false"
+            tools:replace="android:exported">
             <intent-filter>
-                <action android:name="com.classtranscribe.classcapture.uploadservice.action.upload"/>
+                <action android:name="com.classtranscribe.classcapture.uploadservice.action.upload" />
             </intent-filter>
         </service>
-        <!-- Optionally, register AnalyticsReceiver and AnalyticsService to support background
-      dispatching on non-Google Play devices -->
-        <receiver android:name="com.google.android.gms.analytics.AnalyticsReceiver"
+        <!--
+      Optionally, register AnalyticsReceiver and AnalyticsService to support background
+      dispatching on non-Google Play devices
+        -->
+        <receiver
+            android:name="com.google.android.gms.analytics.AnalyticsReceiver"
             android:enabled="true">
             <intent-filter>
                 <action android:name="com.google.android.gms.analytics.ANALYTICS_DISPATCH" />
             </intent-filter>
         </receiver>
-        <service android:name="com.google.android.gms.analytics.AnalyticsService"
-            android:enabled="true"
-            android:exported="false"/>
 
+        <service
+            android:name="com.google.android.gms.analytics.AnalyticsService"
+            android:enabled="true"
+            android:exported="false" />
+        <service
+            android:name=".android_services.VideoUploadIntentService"
+            android:exported="false" />
+
+        <receiver
+            android:name=".services.UploadAlarmReceiver"
+            android:enabled="true"
+            android:exported="false"
+            android:process=":cc_alarm"></receiver>
     </application>
 
 </manifest>

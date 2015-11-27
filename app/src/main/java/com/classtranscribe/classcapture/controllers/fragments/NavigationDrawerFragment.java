@@ -20,6 +20,7 @@ import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.controllers.activities.MainActivity;
@@ -88,6 +89,7 @@ public class NavigationDrawerFragment extends Fragment {
             Realm realm = Realm.getDefaultInstance();
             boolean noRegisteredSections = realm.allObjects(Section.class).isEmpty();
             if (noRegisteredSections) {
+                Toast.makeText(this.getActivity(), getString(R.string.go_to_settings_prompt), Toast.LENGTH_LONG).show();
                 currentSelectedPosition = 2;
             }
             realm.close();

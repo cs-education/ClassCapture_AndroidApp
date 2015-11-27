@@ -2,6 +2,7 @@ package com.classtranscribe.classcapture.adapters;
 
 import android.content.Context;
 import android.database.DataSetObserver;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ListAdapter;
@@ -10,6 +11,7 @@ import android.widget.TextView;
 import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Recording;
+import com.classtranscribe.classcapture.services.CustomCB;
 import com.classtranscribe.classcapture.services.RecordingService;
 import com.classtranscribe.classcapture.services.RecordingServiceProvider;
 
@@ -17,8 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import retrofit.Callback;
-import retrofit.RetrofitError;
-import retrofit.client.Response;
+import retrofit.Response;
+import retrofit.Retrofit;
 
 /**
  * Created by sourabhdesai on 6/18/15.
@@ -52,16 +54,16 @@ public class RecordingsListAdapter implements ListAdapter {
     public void registerDataSetObserver(final DataSetObserver observer) {
         // While the DataSetObserver is still in scope, make the request
         // Can call on observers methods within callback
-        this.recordingService.listRecordings(new Callback<List<Recording>>() {
+        this.recordingService.listRecordings(new CustomCB<List<Recording>>(this.context, RecordingsListAdapter.class.getName()) {
             @Override
-            public void success(List<Recording> recordings, Response response) {
-                RecordingsListAdapter.this.recordings = recordings;
+            public void onResponse(Response<List<Recording>> response, Retrofit retrofit) {
+                RecordingsListAdapter.this.recordings = response.body();
                 observer.onChanged();
             }
 
             @Override
-            public void failure(RetrofitError error) {
-                System.out.println(error);
+            public void onRequestFailure(Throwable t) {
+                t.printStackTrace();
                 observer.onInvalidated();
             }
         });
@@ -84,7 +86,7 @@ public class RecordingsListAdapter implements ListAdapter {
 
     @Override
     public long getItemId(int position) {
-        return this.recordings.get(position).id;
+        return this.recordings.get(position).getId();
     }
 
     @Override

@@ -1,8 +1,10 @@
 package com.classtranscribe.classcapture.controllers.fragments;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -20,19 +22,19 @@ import android.widget.VideoView;
 
 import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.adapters.SectionSpinnerAdapter;
+import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Recording;
 import com.classtranscribe.classcapture.models.Section;
-import com.classtranscribe.classcapture.controllers.activities.MainActivity;
+import com.classtranscribe.classcapture.services.GoogleAnalyticsTrackerService;
 import com.google.android.gms.analytics.HitBuilders;
 import com.google.android.gms.analytics.Tracker;
 
-import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import retrofit.Callback;
-import retrofit.RetrofitError;
-import retrofit.client.Response;
+import retrofit.Response;
+import retrofit.Retrofit;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -63,7 +65,6 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
 
     // Instance variables for recording
     Recording capturedRecording;
-    boolean hasBeenInitialized;
 
     // Section to be attached with recording
     Section chosenSection;
@@ -145,16 +146,32 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
     public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
         this.chosenSection = (Section) this.sectionSpinner.getItemAtPosition(position);
         this.uploadButton.setEnabled(true);
+        // Start video capture
+        this.dispatchTakeVideoIntent();
     }
 
     @Override
     public void onNothingSelected(AdapterView<?> parent) {
         this.chosenSection = null;
         this.uploadButton.setEnabled(false);
+
+        // Prompt the user to sign up for a section via the settings screen
+        AlertDialog goToSettingsDialog = new AlertDialog.Builder(this.getActivity())
+                .setCancelable(false)
+                .setTitle(getString(R.string.go_to_settings_prompt))
+                .setPositiveButton("Settings", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        MainActivity mainActivity = (MainActivity) VideoCaptureFragment.this.getActivity();
+                        mainActivity.onNavigationDrawerItemSelected(MainActivity.SETTINGS_FRAGMENT_POSITION);
+                    }
+                }).create();
+
+        goToSettingsDialog.show();
     }
 
     public void trackUploadClickEvent() {
-        Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
+        Tracker tracker = GoogleAnalyticsTrackerService.getDefaultTracker(this.getActivity());
         tracker.send(new HitBuilders.EventBuilder()
                 .setCategory(this.getString(R.string.recording_category_name))
                 .setAction(this.getString(R.string.upload_recording_action_name))
@@ -170,12 +187,14 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
                 return;
             }
 
-            if (this.capturedRecording.startTime == null) {
+            if (this.capturedRecording.getStartTime() == null) {
                 System.err.println("capturedRecording.startTime is null");
+                return;
             }
 
-            if (this.capturedRecording.endTime== null) {
+            if (this.capturedRecording.getEndTime()== null) {
                 System.err.println("capturedRecording.endTime is null");
+                return;
             }
 
             // Send the event to GA
@@ -190,25 +209,14 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
 
             this.capturedRecording.uploadRecording((MainActivity) this.getActivity(), new Callback<Recording>() {
                 @Override
-                public void success(Recording recording, Response response) {
-                    VideoCaptureFragment.this.listener.onVideoCaptureUploadSuccess(recording);
+                public void onResponse(Response<Recording> response, Retrofit retrofit) {
+                    VideoCaptureFragment.this.listener.onVideoCaptureUploadSuccess(response.body());
                     progress.dismiss(); // Finally dismiss the progress dialog
                 }
 
                 @Override
-                public void failure(RetrofitError error) {
-                    //For Debugging only: Print out the body of the response
-                    System.err.println(error);
-                    System.err.println("Body: " + error.getBody());
-                    byte[] bodyBuffer = new byte[(int) error.getResponse().getBody().length()];
-                    try {
-                        error.getResponse().getBody().in().read(bodyBuffer);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                    System.err.println(new String(bodyBuffer));
-
-                    VideoCaptureFragment.this.listener.onVideoCaptureUploadFailure(error);
+                public void onFailure(Throwable error) {
+                    VideoCaptureFragment.this.listener.onVideoCaptureUploadFailure(error, VideoCaptureFragment.this.capturedRecording);
                     progress.dismiss(); // Finally dismiss the progress dialog
                     uploadButton.setEnabled(true); // If the upload failed for some reason, allow them to try again
                 }
@@ -226,7 +234,7 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
             // Set fragment callback
             // This callback is called within onActivityResult of MainActivity
             // onActivityResult of MainActivity is used as the callback for when the user shoots a video
-            // onActivityResult receives the videoUri and sends it along to this callback
+            // onActivityResult receives the videoFilePath and sends it along to this callback
             VideoCaptureFragment.this.listener.videoCaptureFragmentInteraction(new VideoCaptureListener() {
                 @Override
                 public void onVideoCapture(Uri videoUri) {
@@ -247,14 +255,11 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
                     VideoCaptureFragment.this.updateRecordingDurationTextView();
                 }
             });
-
-            // Start video capture
-            this.dispatchTakeVideoIntent();
         }
 
         // Check if the fragment hit event has been tracked, if not then better track it
         if (!fragArgs.getBoolean(FRAG_HIT_HAS_BEEN_TRACKED, false)) {
-            Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
+            Tracker tracker = GoogleAnalyticsTrackerService.getDefaultTracker(this.getActivity());
             tracker.setScreenName(this.getString(R.string.video_capture_screen_name));
             tracker.send(new HitBuilders.ScreenViewBuilder().build());
             // Update FRAG_HIT_HAS_BEEN_TRACKED argument
@@ -267,8 +272,8 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
      * Updates the video
      */
     private void updateRecordingDurationTextView() {
-        Date start = this.capturedRecording.startTime;
-        Date end   = this.capturedRecording.endTime;
+        Date start = this.capturedRecording.getStartTime();
+        Date end   = this.capturedRecording.getEndTime();
 
         if (start == null || end == null) {
             throw new IllegalStateException("Recording Object isn't populated with duration metadata");
@@ -323,7 +328,7 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
     public interface OnFragmentInteractionListener {
         public void videoCaptureFragmentInteraction(VideoCaptureFragment.VideoCaptureListener captureListener);
         public void onVideoCaptureUploadSuccess(Recording recording);
-        public void onVideoCaptureUploadFailure(RetrofitError error);
+        public void onVideoCaptureUploadFailure(Throwable error, Recording recording);
     }
 
     public interface VideoCaptureListener {

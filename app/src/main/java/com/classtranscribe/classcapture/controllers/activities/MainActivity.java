@@ -1,5 +1,8 @@
 package com.classtranscribe.classcapture.controllers.activities;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -14,18 +17,18 @@ import android.widget.Toast;
 
 import com.alexbbb.uploadservice.UploadService;
 import com.classtranscribe.classcapture.R;
-import com.classtranscribe.classcapture.models.Recording;
 import com.classtranscribe.classcapture.controllers.fragments.NavigationDrawerFragment;
 import com.classtranscribe.classcapture.controllers.fragments.RecordingsFragment;
 import com.classtranscribe.classcapture.controllers.fragments.SettingsFragment;
 import com.classtranscribe.classcapture.controllers.fragments.VideoCaptureFragment;
-import com.google.android.gms.analytics.GoogleAnalytics;
+import com.classtranscribe.classcapture.models.Recording;
+import com.classtranscribe.classcapture.services.GoogleAnalyticsTrackerService;
+import com.classtranscribe.classcapture.services.UploadAlarmReceiver;
 import com.google.android.gms.analytics.HitBuilders;
 import com.google.android.gms.analytics.Tracker;
 
 import io.realm.Realm;
 import io.realm.RealmConfiguration;
-import retrofit.RetrofitError;
 
 
 public class MainActivity extends ActionBarActivity
@@ -33,6 +36,11 @@ public class MainActivity extends ActionBarActivity
 
     public static final int REQUEST_VIDEO_CAPTURE = 1; // request code
 
+    public static final int RECORDINGS_FRAGMENT_POSITION = 0;
+    public static final int VIDEO_CAPTURE_FRAGMENT_POSITION = 1;
+    public static final int SETTINGS_FRAGMENT_POSITION = 2;
+
+    public static boolean UPLOAD_ALARM_HAS_BEEN_SET = false;
     /**
      * Fragment managing the behaviors, interactions and presentation of the navigation drawer.
      */
@@ -49,6 +57,7 @@ public class MainActivity extends ActionBarActivity
     private VideoCaptureFragment.VideoCaptureListener captureListener;
 
     Realm defaultRealm;
+    Realm videoUploadRealm;
     private Tracker defaultTracker;
 
     @Override
@@ -56,7 +65,7 @@ public class MainActivity extends ActionBarActivity
         super.onCreate(savedInstanceState);
 
         // Set up info for libraries
-        this.setupRealm();
+        this.setupDefaultRealm();
         UploadService.NAMESPACE = this.getPackageName(); // Sets so service can know which app to direct updates to...i think
 
         setContentView(R.layout.activity_main);
@@ -72,22 +81,17 @@ public class MainActivity extends ActionBarActivity
                 (DrawerLayout) findViewById(R.id.drawer_layout));
     }
 
-    synchronized public Tracker getDefaultTracker() {
-        if (this.defaultTracker == null) {
-            GoogleAnalytics analytics = GoogleAnalytics.getInstance(this);
-            // To enable debug logging use: adb shell setprop log.tag.GAv4 DEBUG
-            this.defaultTracker = analytics.newTracker(R.xml.global_tracker);
-        }
-
-        return this.defaultTracker;
-    }
-
     @Override
     public void onResume() {
         super.onResume();
-        Tracker tracker = this.getDefaultTracker();
+        Tracker tracker = GoogleAnalyticsTrackerService.getDefaultTracker(this);
         tracker.setScreenName(this.getString(R.string.main_activity_screen_name));
         tracker.send(new HitBuilders.ScreenViewBuilder().build());
+
+        if (!UPLOAD_ALARM_HAS_BEEN_SET) {
+            this.scheduleUploadAlarm();
+            UPLOAD_ALARM_HAS_BEEN_SET = true;
+        }
     }
 
     @Override
@@ -106,11 +110,11 @@ public class MainActivity extends ActionBarActivity
      */
     public Fragment getFragmentInstance(int position) {
         switch (position) {
-            case 0:
+            case RECORDINGS_FRAGMENT_POSITION:
                 return RecordingsFragment.newInstance();
-            case 1:
+            case VIDEO_CAPTURE_FRAGMENT_POSITION:
                 return VideoCaptureFragment.newInstance();
-            case 2:
+            case SETTINGS_FRAGMENT_POSITION:
                 return SettingsFragment.newInstance();
             default:
                 return RecordingsFragment.newInstance();
@@ -147,6 +151,7 @@ public class MainActivity extends ActionBarActivity
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
+            this.onNavigationDrawerItemSelected(SETTINGS_FRAGMENT_POSITION);
             return true;
         }
 
@@ -172,8 +177,9 @@ public class MainActivity extends ActionBarActivity
     }
 
     @Override
-    public void onVideoCaptureUploadFailure(RetrofitError error) {
-        Toast.makeText(this, "Video Upload Failed: " + error, Toast.LENGTH_SHORT).show();
+    public void onVideoCaptureUploadFailure(Throwable error, Recording recording) {
+        error.printStackTrace();
+
     }
 
     /**
@@ -196,11 +202,36 @@ public class MainActivity extends ActionBarActivity
     /**
      * Sets Default realm config and sets this.defaultRealm
      */
-    private void setupRealm() {
+    private void setupDefaultRealm() {
         RealmConfiguration.Builder configBuilder = new RealmConfiguration.Builder(this);
         RealmConfiguration defaultConfig = configBuilder.build();
         Realm.setDefaultConfiguration(defaultConfig);
         this.defaultRealm = Realm.getDefaultInstance();
     }
 
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        this.defaultRealm.close();
+        this.videoUploadRealm.close();
+    }
+
+    /*
+     * Setup a recurring alarm every half hour
+     * Got this from here: https://guides.codepath.com/android/Starting-Background-Services#using-with-alarmmanager-for-periodic-tasks
+     */
+    public void scheduleUploadAlarm() {
+        // Construct an intent that will execute the AlarmReceiver
+        Intent intent = new Intent(getApplicationContext(), UploadAlarmReceiver.class);
+        // Create a PendingIntent to be triggered when the alarm goes off
+        final PendingIntent pIntent = PendingIntent.getBroadcast(this, UploadAlarmReceiver.REQUEST_CODE,
+                intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        // Setup periodic alarm every 5 seconds
+        long firstMillis = System.currentTimeMillis(); // alarm is set right away
+        AlarmManager alarm = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
+        // First parameter is the type: ELAPSED_REALTIME, ELAPSED_REALTIME_WAKEUP, RTC_WAKEUP
+        // Interval can be INTERVAL_FIFTEEN_MINUTES, INTERVAL_HALF_HOUR, INTERVAL_HOUR, INTERVAL_DAY
+        alarm.setInexactRepeating(AlarmManager.RTC_WAKEUP, firstMillis,
+                AlarmManager.INTERVAL_HALF_HOUR, pIntent);
+    }
 }

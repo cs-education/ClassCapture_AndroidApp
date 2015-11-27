@@ -6,26 +6,35 @@ import android.database.Cursor;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.provider.MediaStore;
+import android.util.Log;
 import android.widget.Toast;
 
-import com.alexbbb.uploadservice.ContentType;
 import com.alexbbb.uploadservice.UploadRequest;
 import com.alexbbb.uploadservice.UploadService;
 import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.controllers.activities.MainActivity;
-import com.classtranscribe.classcapture.services.RecordingServiceProvider;
 import com.classtranscribe.classcapture.services.RecordingService;
+import com.classtranscribe.classcapture.services.RecordingServiceProvider;
 import com.classtranscribe.classcapture.services.SettingsService;
 import com.classtranscribe.classcapture.services.UploadServiceReceiver;
+import com.squareup.okhttp.MediaType;
+import com.squareup.okhttp.RequestBody;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.MalformedURLException;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Objects;
+import java.util.TimeZone;
 
+import io.realm.RealmObject;
+import retrofit.Call;
 import retrofit.Callback;
-import retrofit.RetrofitError;
-import retrofit.client.Response;
-import retrofit.mime.TypedFile;
+import retrofit.Response;
+import retrofit.Retrofit;
 
 /**
  * Created by sourabhdesai on 6/19/15.
@@ -47,28 +56,32 @@ public class Recording {
 
     private static final String VIDEO_MIME_TYPE = "video/mp4";
 
-    public Date startTime;
-    public Date endTime;
-    public String filename;
-    public long id;
-    public long section; // Id for section that this recording is for
-    public Date createdAt;
-    public Date updatedAt;
+    private Date startTime;
+    private Date endTime;
+    private String filename;
+    private long id = -1;
+    private long section = -1; // Id for section that this recording is for
+    private Date createdAt;
+    private Date updatedAt;
 
-    public transient Uri videoUri;
+    private String videoFilePath;
+
+    private boolean isFromDatabase; // specifies whether this recording was constructed from a API response
 
     public Recording() {
         // does nothing
     }
 
     public Recording(Date startTime, Date endTime, long section) {
+        this.isFromDatabase = false;
         this.startTime = startTime;
         this.endTime = endTime;
         this.section = section;
     }
 
     public Recording(Context context, Uri videoUri, long section) {
-        this.videoUri = videoUri;
+        this.isFromDatabase = false;
+        this.videoFilePath = getFilePathFromURI(context, videoUri);
         this.section = section;
 
         // Query MediaStore for metadata on retrieved video.
@@ -81,14 +94,23 @@ public class Recording {
 
             // TODO: Need to figure out how to parse METADATA_KEY_DATE into java.util.Date.
             // Till then, need to backtrack from endtime given duration for start time
-            String durationStr = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
-            //String dateStr     = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DATE);
+            String durationStr  = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            String startDateStr = metadataRetriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DATE);
 
-            long duration = Long.parseLong(durationStr);
-            //long date     = Long.parseLong(dateStr);
+            Log.d("yo!", "dateStr = " + startDateStr);
 
-            this.endTime   = new Date();
-            this.startTime = new Date(this.endTime.getTime() - duration);
+            TimeZone timeZone = TimeZone.getDefault();
+            DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd'T'HHmmss.SSS");
+            dateFormat.setTimeZone(timeZone);
+
+            long duration      = Long.parseLong(durationStr);
+            long startDateTime = dateFormat.parse(startDateStr).getTime();
+            Log.d("yo!", "startDateTime: " + startDateTime);
+            Log.d("yo!", "duration: " + duration);
+            this.startTime = new Date(startDateTime);
+            this.endTime   = new Date(startDateTime + duration);
+        } catch (ParseException e) {
+            e.printStackTrace();
         } finally {
             metadataRetriever.release();
         }
@@ -143,9 +165,44 @@ public class Recording {
         return this.startTime + " to " + this.endTime;
     }
 
+    @Override
+    public boolean equals(Object other) {
+        if (! (other instanceof Recording)) {
+            return false;
+        }
+
+        Recording otherRecording = (Recording) other;
+
+        if (this.id >= 0 && otherRecording.id >= 0) {
+            return this.id == otherRecording.id;
+        } else if (this.startTime != null && this.endTime != null && otherRecording.startTime != null && otherRecording.endTime != null) {
+            return this.startTime.equals(otherRecording.startTime) && this.endTime.equals(otherRecording.endTime);
+        }
+
+        return false;
+    }
+
+    /**
+     * Copies over all NON-null fields from input recording to this recording
+     * @param other recording to copy fields over form
+     */
+    private void copy(Recording other) {
+        this.startTime = other.startTime != null ? this.startTime : other.startTime;
+        this.endTime = other.endTime != null ? this.endTime : other.endTime;
+        this.filename = other.filename != null ? this.filename : other.filename;
+        this.id = other.id >= 0 ? this.id : other.id;
+        this.section = other.section >= 0 ? this.section : other.section; // Id for section that this recording is for
+        this.createdAt = other.createdAt != null ? this.createdAt : other.createdAt;
+        this.updatedAt = other.updatedAt != null ? this.updatedAt : other.updatedAt;
+
+        this.videoFilePath = other.videoFilePath != null ? this.videoFilePath : other.videoFilePath;
+
+        this.isFromDatabase =this.isFromDatabase || other.isFromDatabase; // specifies whether this recording was constructed from a API response
+    }
+
     /**
      * Given a context, and video uri, will create a new Recording object on the backend
-     * and attach the given video to it.
+     * and will also upload the corresponding video file to it.
      * @param mainActivity
      * @param cb
      */
@@ -158,11 +215,14 @@ public class Recording {
 
         recordingService.newRecording(this, new Callback<Recording>() {
             @Override
-            public void success(final Recording recording, final Response newRecordingResponse) {
+            public void onResponse(Response<Recording> response, Retrofit retrofit) {
                 // Created new recording
                 // Now upload the video recording with the filename given by the Recording in the response
                 // Upload the video in a service
-                final String videoFilePath = getFilePathFromURI(mainActivity, Recording.this.videoUri);
+                Recording recording = response.body();
+                recording.isFromDatabase = true;
+                Recording.this.copy(recording); // update this recordings fields with response fields
+
                 final String uploadID = String.valueOf(recording.id); // Can just make upload ID be the ID of the recording
                 final String uploadURL = recording.getVideoURL(mainActivity);
                 final String deviceID = SettingsService.getDeviceID(mainActivity); // to add to header
@@ -171,7 +231,7 @@ public class Recording {
 
                 UploadRequest request = new UploadRequest(mainActivity, uploadID, uploadURL);
                 request.addHeader(deviceIDHeader, deviceID); // add header, currently used on backend for security validation
-                request.addFileToUpload(videoFilePath, videoParamName, recording.filename, VIDEO_MIME_TYPE);
+                request.addFileToUpload(Recording.this.videoFilePath, videoParamName, recording.filename, VIDEO_MIME_TYPE);
 
                 // Messages to display upon various events during upload
                 request.setNotificationConfig(R.drawable.ic_launcher, mainActivity.getString(R.string.app_name),
@@ -188,12 +248,12 @@ public class Recording {
                 request.setMaxRetries(1);
 
                 // register a broadcast receiver for the request
-                UploadServiceReceiver receiver = new UploadServiceReceiver(uploadID, videoFilePath);
+                UploadServiceReceiver receiver = new UploadServiceReceiver(recording, mainActivity);
                 receiver.register(mainActivity);
                 // send the request
                 try {
                     UploadService.startUpload(request);
-                    cb.success(recording, newRecordingResponse); // bubble up success via cb
+                    cb.onResponse(response, retrofit); // bubble up success via cb
                 } catch (MalformedURLException e) {
                     e.printStackTrace();
                     Toast.makeText(mainActivity, mainActivity.getString(R.string.upload_error), Toast.LENGTH_SHORT).show();
@@ -201,10 +261,48 @@ public class Recording {
             }
 
             @Override
-            public void failure(RetrofitError error) {
-                cb.failure(error);
+            public void onFailure(Throwable error) {
+                cb.onFailure(error);
             }
         });
+    }
+
+    /**
+     * Will create a new Recording entry in the database. Will update its own fields with the fields retrieved by API response
+     * WILL NOT UPLOAD CORRESPONDING VIDEO. LOOK AT `uploadVideoSync` FOR THAT.
+     * @param context
+     * @throws IOException
+     */
+    public void uploadRecordingSync(Context context) throws IOException {
+        if (!this.isValidForUpload()) {
+            throw new IllegalStateException("Recording is not valid for upload: " + this);
+        }
+
+        RecordingService recordingService = RecordingServiceProvider.getInstance(context);
+
+        Call<Recording> call = recordingService.newRecording(this);
+        Response<Recording> response = call.execute();
+        Recording dbRecording = response.body();
+        dbRecording.isFromDatabase = true;
+
+        this.copy(dbRecording); // copy response fields into this recording
+    }
+
+    /**
+     * Will upload video file that is attached to this recording to the backend.
+     * @param context
+     * @throws IOException
+     */
+    public void uploadVideoSync(Context context) throws IOException {
+        RecordingService recordingService = RecordingServiceProvider.getInstance(context);
+        MediaType mediaType = MediaType.parse(VIDEO_MIME_TYPE);
+        RequestBody body = RequestBody.create(mediaType, new File(this.videoFilePath));
+        Call videoUploadCall = recordingService.uploadRecordingVideo(this.filename, body);
+        Response uploadResponse = videoUploadCall.execute();
+
+        if (!uploadResponse.isSuccess()) {
+            throw new IOException("Request to upload video was met with response with status code " + uploadResponse.code());
+        }
     }
 
     /**
@@ -226,7 +324,7 @@ public class Recording {
      * @return boolean representing whether this is safe for upload
      */
     public boolean isValidForUpload() {
-        return this.startTime != null && this.endTime != null;
+        return this.startTime != null && this.endTime != null && this.videoFilePath != null;
     }
 
     /**
@@ -249,6 +347,82 @@ public class Recording {
                 cursor.close();
             }
         }
+    }
+
+    /*
+     * Vanilla getters and setters
+     */
+
+    public Date getStartTime() {
+        return startTime;
+    }
+
+    public void setStartTime(Date startTime) {
+        this.startTime = startTime;
+    }
+
+    public Date getEndTime() {
+        return endTime;
+    }
+
+    public void setEndTime(Date endTime) {
+        this.endTime = endTime;
+    }
+
+    public String getFilename() {
+        return filename;
+    }
+
+    public void setFilename(String filename) {
+        this.filename = filename;
+    }
+
+    public long getId() {
+        return id;
+    }
+
+    public void setId(long id) {
+        this.id = id;
+    }
+
+    public long getSection() {
+        return section;
+    }
+
+    public void setSection(long section) {
+        this.section = section;
+    }
+
+    public Date getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Date createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Date getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Date updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    public String getVideoFilePath() {
+        return videoFilePath;
+    }
+
+    public void setVideoFilePath(String videoFilePath) {
+        this.videoFilePath = videoFilePath;
+    }
+
+    /**
+     * specifies whether this recording was constructed from a API response
+     * @return flag representing whether object is from API or constructed on device
+     */
+    public boolean isFromDatabase() {
+        return isFromDatabase;
     }
 
 }

@@ -10,6 +10,7 @@ import android.widget.ListAdapter;
 import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Course;
 import com.classtranscribe.classcapture.models.Section;
+import com.classtranscribe.classcapture.services.CustomCB;
 import com.classtranscribe.classcapture.services.SectionService;
 import com.classtranscribe.classcapture.services.SectionServiceProvider;
 
@@ -18,8 +19,8 @@ import java.util.List;
 
 import io.realm.Realm;
 import retrofit.Callback;
-import retrofit.RetrofitError;
-import retrofit.client.Response;
+import retrofit.Response;
+import retrofit.Retrofit;
 
 /**
  * Created by sourabhdesai on 9/20/15.
@@ -48,11 +49,10 @@ public class SectionListAdapter implements ListAdapter {
     public void registerDataSetObserver(final DataSetObserver observer) {
         this.observer = observer;
         SectionService sectionService = SectionServiceProvider.getInstance(this.context);
-        sectionService.listSections(new Callback<List<Section>>() {
+        sectionService.listSections(new CustomCB<List<Section>>(this.context, SectionListAdapter.class.getName()) {
             @Override
-            public void success(List<Section> sections, Response response) {
-                Log.d("yo!", "Got response with " + sections.size() + " sections");
-                SectionListAdapter.this.sections = sections;
+            public void onResponse(Response<List<Section>> response, Retrofit retrofit) {
+                SectionListAdapter.this.sections = response.body();
                 SectionListAdapter.this.updatedSectionAt = new boolean[sections.size()];
 
                 // notify the listener if its set
@@ -64,9 +64,9 @@ public class SectionListAdapter implements ListAdapter {
             }
 
             @Override
-            public void failure(RetrofitError error) {
+            public void onRequestFailure(Throwable t) {
                 if (SectionListAdapter.this.onLoadedListener != null) {
-                    SectionListAdapter.this.onLoadedListener.onLoadingError(error);
+                    SectionListAdapter.this.onLoadedListener.onLoadingError(t);
                 }
             }
         });
@@ -166,6 +166,6 @@ public class SectionListAdapter implements ListAdapter {
 
     public static interface OnSectionsLoadedListener {
         public void onLoaded(List<Section> sections);
-        public void onLoadingError(Exception e);
+        public void onLoadingError(Throwable t);
     }
 }
