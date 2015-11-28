@@ -24,8 +24,11 @@ import com.classtranscribe.classcapture.controllers.fragments.VideoCaptureFragme
 import com.classtranscribe.classcapture.models.Recording;
 import com.classtranscribe.classcapture.services.GoogleAnalyticsTrackerService;
 import com.classtranscribe.classcapture.services.UploadAlarmReceiver;
+import com.classtranscribe.classcapture.services.UploadQueueProvider;
 import com.google.android.gms.analytics.HitBuilders;
 import com.google.android.gms.analytics.Tracker;
+
+import java.io.IOException;
 
 import io.realm.Realm;
 import io.realm.RealmConfiguration;
@@ -177,9 +180,19 @@ public class MainActivity extends ActionBarActivity
     }
 
     @Override
-    public void onVideoCaptureUploadFailure(Throwable error, Recording recording) {
+    public void onVideoCaptureUploadFailure(Throwable error, final Recording recording) {
         error.printStackTrace();
-
+        // Write the recording to the upload queue on a new thread.
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    UploadQueueProvider.addToUploadQueue(MainActivity.this, recording);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
     }
 
     /**

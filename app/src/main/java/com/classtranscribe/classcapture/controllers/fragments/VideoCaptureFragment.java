@@ -25,6 +25,7 @@ import com.classtranscribe.classcapture.adapters.SectionSpinnerAdapter;
 import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Recording;
 import com.classtranscribe.classcapture.models.Section;
+import com.classtranscribe.classcapture.services.CustomCB;
 import com.classtranscribe.classcapture.services.GoogleAnalyticsTrackerService;
 import com.google.android.gms.analytics.HitBuilders;
 import com.google.android.gms.analytics.Tracker;
@@ -207,7 +208,7 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
             final ProgressDialog progress = ProgressDialog.show(VideoCaptureFragment.this.getActivity(), UPLOAD_DIALOG_TITLE, UPLOAD_DIALOG_MESSAGE, true);
             progress.setCancelable(false); // Dialog will be modal
 
-            this.capturedRecording.uploadRecording((MainActivity) this.getActivity(), new Callback<Recording>() {
+            this.capturedRecording.uploadRecording((MainActivity) this.getActivity(), new CustomCB<Recording>(this.getActivity(), "Recording") {
                 @Override
                 public void onResponse(Response<Recording> response, Retrofit retrofit) {
                     VideoCaptureFragment.this.listener.onVideoCaptureUploadSuccess(response.body());
@@ -215,7 +216,7 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
                 }
 
                 @Override
-                public void onFailure(Throwable error) {
+                public void onRequestFailure(Throwable error) {
                     VideoCaptureFragment.this.listener.onVideoCaptureUploadFailure(error, VideoCaptureFragment.this.capturedRecording);
                     progress.dismiss(); // Finally dismiss the progress dialog
                     uploadButton.setEnabled(true); // If the upload failed for some reason, allow them to try again
