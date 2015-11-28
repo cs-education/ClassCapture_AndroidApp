@@ -1,8 +1,9 @@
 package com.classtranscribe.classcapture.services;
 
-import android.content.Context;
-
 import com.classtranscribe.classcapture.R;
+import com.classtranscribe.classcapture.controllers.activities.MainActivity;
+import com.google.android.gms.analytics.HitBuilders;
+import com.google.android.gms.analytics.Tracker;
 import com.google.gson.ExclusionStrategy;
 import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
@@ -16,7 +17,9 @@ import com.google.gson.JsonParseException;
 import java.lang.reflect.Type;
 
 import io.realm.RealmObject;
+import retrofit.ErrorHandler;
 import retrofit.RestAdapter;
+import retrofit.RetrofitError;
 import retrofit.converter.GsonConverter;
 
 /**
@@ -28,7 +31,7 @@ import retrofit.converter.GsonConverter;
 public class RecordingServiceProvider {
     private static RecordingService ourInstance = null;
 
-    public static RecordingService getInstance(Context context) {
+    public static RecordingService getInstance(final MainActivity mainActivity) {
         if (ourInstance != null) {
             return ourInstance;
         }
@@ -54,8 +57,10 @@ public class RecordingServiceProvider {
 
         // Create rest adapter from RetroFit. Initialize endpoint
         RestAdapter restAdapter = new RestAdapter.Builder()
-                .setEndpoint(context.getString(R.string.api_base_url))
-                .setRequestInterceptor(new DeviceIDRequestInterceptor(context))
+                .setEndpoint(mainActivity.getString(R.string.api_base_url))
+                .setRequestInterceptor(new DeviceIDRequestInterceptor(mainActivity))
+                // Want to send request errors to google analytics
+                .setErrorHandler(new RetrofitErrorHandler(mainActivity, "Recording"))
                 .setConverter(new GsonConverter(gson))
                 .build();
 

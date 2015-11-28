@@ -23,6 +23,8 @@ import com.classtranscribe.classcapture.adapters.SectionSpinnerAdapter;
 import com.classtranscribe.classcapture.models.Recording;
 import com.classtranscribe.classcapture.models.Section;
 import com.classtranscribe.classcapture.controllers.activities.MainActivity;
+import com.google.android.gms.analytics.HitBuilders;
+import com.google.android.gms.analytics.Tracker;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -49,6 +51,7 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
     // Fragment Bundle Argument parameters
     private static final String VIDEO_HAS_BEEN_CAPTURED = "videoCaptured";
     private static final String HAS_BEEN_INITIALIZED = "hasBeenInitialized";
+    private static final String FRAG_HIT_HAS_BEEN_TRACKED = "hitTracked";
 
     private OnFragmentInteractionListener listener;
 
@@ -78,6 +81,7 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
 
         args.putBoolean(VIDEO_HAS_BEEN_CAPTURED, false);
         args.putBoolean(HAS_BEEN_INITIALIZED, false);
+        args.putBoolean(FRAG_HIT_HAS_BEEN_TRACKED, false);
 
         fragment.setArguments(args);
         return fragment;
@@ -149,6 +153,14 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
         this.uploadButton.setEnabled(false);
     }
 
+    public void trackUploadClickEvent() {
+        Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
+        tracker.send(new HitBuilders.EventBuilder()
+                .setCategory(this.getString(R.string.recording_category_name))
+                .setAction(this.getString(R.string.upload_recording_action_name))
+                .build());
+    }
+
     public void onUploadClicked() {
         boolean videoHasBeenCaptured = this.getArguments().getBoolean(VIDEO_HAS_BEEN_CAPTURED, false);
         if (videoHasBeenCaptured) {
@@ -166,6 +178,9 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
                 System.err.println("capturedRecording.endTime is null");
             }
 
+            // Send the event to GA
+            this.trackUploadClickEvent();
+
             // First, disable the upload button so video cant be uploaded twice
             uploadButton.setEnabled(false);
 
@@ -173,7 +188,7 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
             final ProgressDialog progress = ProgressDialog.show(VideoCaptureFragment.this.getActivity(), UPLOAD_DIALOG_TITLE, UPLOAD_DIALOG_MESSAGE, true);
             progress.setCancelable(false); // Dialog will be modal
 
-            this.capturedRecording.uploadRecording(this.getActivity(), new Callback<Recording>() {
+            this.capturedRecording.uploadRecording((MainActivity) this.getActivity(), new Callback<Recording>() {
                 @Override
                 public void success(Recording recording, Response response) {
                     VideoCaptureFragment.this.listener.onVideoCaptureUploadSuccess(recording);
@@ -235,6 +250,16 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
 
             // Start video capture
             this.dispatchTakeVideoIntent();
+        }
+
+        // Check if the fragment hit event has been tracked, if not then better track it
+        if (!fragArgs.getBoolean(FRAG_HIT_HAS_BEEN_TRACKED, false)) {
+            Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
+            tracker.setScreenName(this.getString(R.string.video_capture_screen_name));
+            tracker.send(new HitBuilders.ScreenViewBuilder().build());
+            // Update FRAG_HIT_HAS_BEEN_TRACKED argument
+            this.getArguments()
+                .putBoolean(FRAG_HIT_HAS_BEEN_TRACKED, true);
         }
     }
 

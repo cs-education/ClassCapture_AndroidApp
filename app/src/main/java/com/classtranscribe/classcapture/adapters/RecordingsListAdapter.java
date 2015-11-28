@@ -8,6 +8,7 @@ import android.widget.ListAdapter;
 import android.widget.TextView;
 
 import com.classtranscribe.classcapture.R;
+import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Recording;
 import com.classtranscribe.classcapture.services.RecordingService;
 import com.classtranscribe.classcapture.services.RecordingServiceProvider;
@@ -28,11 +29,11 @@ public class RecordingsListAdapter implements ListAdapter {
     private final RecordingService recordingService;
     private List<Recording> recordings;
 
-    public RecordingsListAdapter(Context context) {
+    public RecordingsListAdapter(MainActivity mainActivity) {
         // Save context for view creation within adapter
-        this.context = context;
+        this.context = mainActivity;
 
-        this.recordingService = RecordingServiceProvider.getInstance(this.context);
+        this.recordingService = RecordingServiceProvider.getInstance(mainActivity);
 
         this.recordings = new ArrayList<Recording>(); // Initially empty
     }

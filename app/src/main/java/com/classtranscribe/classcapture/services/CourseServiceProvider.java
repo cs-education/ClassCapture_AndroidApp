@@ -3,13 +3,18 @@ package com.classtranscribe.classcapture.services;
 import android.content.Context;
 
 import com.classtranscribe.classcapture.R;
+import com.classtranscribe.classcapture.controllers.activities.MainActivity;
+import com.google.android.gms.analytics.HitBuilders;
+import com.google.android.gms.analytics.Tracker;
 import com.google.gson.ExclusionStrategy;
 import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import io.realm.RealmObject;
+import retrofit.ErrorHandler;
 import retrofit.RestAdapter;
+import retrofit.RetrofitError;
 import retrofit.converter.GsonConverter;
 
 /**
@@ -21,7 +26,7 @@ import retrofit.converter.GsonConverter;
 public class CourseServiceProvider {
     private static CourseService ourInstance = null;
 
-    public static CourseService getInstance(Context context) {
+    public static CourseService getInstance(final MainActivity mainActivity) {
         if (ourInstance != null) {
             return ourInstance;
         }
@@ -45,8 +50,10 @@ public class CourseServiceProvider {
 
         // Create rest adapter from RetroFit. Initialize endpoint
         RestAdapter restAdapter = new RestAdapter.Builder()
-                .setEndpoint(context.getString(R.string.api_base_url))
-                .setRequestInterceptor(new DeviceIDRequestInterceptor(context))
+                .setEndpoint(mainActivity.getString(R.string.api_base_url))
+                .setRequestInterceptor(new DeviceIDRequestInterceptor(mainActivity))
+                // Want to send request errors to google analytics
+                .setErrorHandler(new RetrofitErrorHandler(mainActivity, "Course"))
                 .setConverter(new GsonConverter(gson))
                 .build();
 

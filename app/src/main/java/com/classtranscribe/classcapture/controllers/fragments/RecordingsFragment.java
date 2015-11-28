@@ -7,8 +7,12 @@ import android.support.v4.app.ListFragment;
 import android.view.View;
 import android.widget.ListView;
 
+import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.adapters.RecordingsListAdapter;
+import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Recording;
+import com.google.android.gms.analytics.HitBuilders;
+import com.google.android.gms.analytics.Tracker;
 
 /**
  * A fragment representing a list of Items.
@@ -39,8 +43,16 @@ public class RecordingsFragment extends ListFragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        this.listAdapter = new RecordingsListAdapter(this.getActivity());
+        this.listAdapter = new RecordingsListAdapter((MainActivity) this.getActivity());
         setListAdapter(this.listAdapter);
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
+        tracker.setScreenName(this.getString(R.string.recording_screen_name));
+        tracker.send(new HitBuilders.ScreenViewBuilder().build());
     }
 
 
@@ -73,11 +85,21 @@ public class RecordingsFragment extends ListFragment {
 
             // Get Recording object corresponding to list item click
             Recording recording = this.listAdapter.getItem(position);
+            this.trackWatchRecordingEvent(recording); // track it with google analytics
             // Create uri for selected video
             Uri videoUri = Uri.parse(recording.getVideoURL(this.getActivity()));
             // Send uri to main activity for
             listener.startVideoViewingActivity(videoUri);
         }
+    }
+
+    public void trackWatchRecordingEvent(Recording recording) {
+        Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
+        tracker.send(new HitBuilders.EventBuilder()
+                .setCategory(this.getString(R.string.recording_category_name))
+                .setAction(this.getString(R.string.watch_recording_action_name))
+                .setValue(recording.id)
+                .build());
     }
 
     /**
