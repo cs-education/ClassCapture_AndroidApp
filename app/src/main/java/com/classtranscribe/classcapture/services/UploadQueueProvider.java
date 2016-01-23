@@ -46,7 +46,7 @@ public class UploadQueueProvider {
             fileOutputStream = context.openFileOutput(UPLOAD_QUEUE_FILE_NAME, Context.MODE_PRIVATE);
             JsonWriter writer = new JsonWriter(new OutputStreamWriter(fileOutputStream));
             // Convert the queue to JSON tree form
-            Gson recordingGson = RecordingServiceProvider.getRecordingGson();
+            Gson recordingGson = GSONUtils.getConfiguredGsonBuilder().create();
             JsonElement jsonFormQueue = recordingGson.toJsonTree(newUploadQueue);
             // Write the JSON tree form of the queue to disk
             recordingGson.toJson(jsonFormQueue, writer);
@@ -58,9 +58,8 @@ public class UploadQueueProvider {
     }
 
     public static synchronized List<Recording> getUploadQueue(Context context) throws IOException {
-        Gson recordingGson = RecordingServiceProvider.getRecordingGson();
-        TypeAdapter<List<Recording>> queueAdapter = recordingGson.getAdapter(new TypeToken<List<Recording>>() {
-        });
+        Gson recordingGson = GSONUtils.getConfiguredGsonBuilder().create();
+        TypeAdapter<List<Recording>> queueAdapter = recordingGson.getAdapter(new TypeToken<List<Recording>>() {});
 
         FileInputStream queueInputStream = null;
         try {
@@ -68,6 +67,7 @@ public class UploadQueueProvider {
             List<Recording> uploadQueue = queueAdapter.fromJson(new InputStreamReader(queueInputStream));
             return uploadQueue;
         } catch (FileNotFoundException e) {
+            e.printStackTrace();
             return new ArrayList<Recording>();
         } finally {
             if (queueInputStream != null) {

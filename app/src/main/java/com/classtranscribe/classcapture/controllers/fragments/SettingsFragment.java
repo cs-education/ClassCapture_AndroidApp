@@ -15,6 +15,7 @@ import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.adapters.SectionListAdapter;
 import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Section;
+import com.classtranscribe.classcapture.services.GoogleAnalyticsTrackerService;
 import com.google.android.gms.analytics.HitBuilders;
 import com.google.android.gms.analytics.Tracker;
 
@@ -28,7 +29,7 @@ import io.realm.RealmQuery;
  * Use the {@link SettingsFragment#newInstance} factory method to
  * create an instance of this fragment.
  */
-public class SettingsFragment extends Fragment implements AdapterView.OnItemClickListener, SectionListAdapter.OnSectionsLoadedListener {
+public class SettingsFragment extends Fragment {
 
     ListView sectionsListView;
     ProgressDialog loadingDialog;
@@ -71,7 +72,7 @@ public class SettingsFragment extends Fragment implements AdapterView.OnItemClic
     @Override
     public void onResume() {
         super.onResume();
-        Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
+        Tracker tracker = GoogleAnalyticsTrackerService.getDefaultTracker(this.getActivity());
         tracker.setScreenName(this.getString(R.string.settings_screen_name));
         tracker.send(new HitBuilders.ScreenViewBuilder().build());
     }
@@ -85,12 +86,12 @@ public class SettingsFragment extends Fragment implements AdapterView.OnItemClic
         this.loadingDialog.show();
 
         // Set adapter for the section list view, will retrieve section info from backend internally
-        SectionListAdapter sectionAdapter = new SectionListAdapter((MainActivity) this.getActivity());
-        sectionAdapter.setOnSectionsLoadedListener(this); // set listener to be notified when loading stops and progressdialog can be dismissed
-        this.sectionsListView.setAdapter(sectionAdapter); // will generate views and subview for explistview
-
-        // Register on child click listener
-        this.sectionsListView.setOnItemClickListener(this);
+//        SectionListAdapter sectionAdapter = new SectionListAdapter((MainActivity) this.getActivity());
+//        sectionAdapter.setOnSectionsLoadedListener(this); // set listener to be notified when loading stops and progressdialog can be dismissed
+//        this.sectionsListView.setAdapter(sectionAdapter); // will generate views and subview for explistview
+//
+//        // Register on child click listener
+//        this.sectionsListView.setOnItemClickListener(this);
     }
 
     /**
@@ -101,67 +102,72 @@ public class SettingsFragment extends Fragment implements AdapterView.OnItemClic
      *
      * Also sends registration/deregistration events to Google Analytics
      */
-    @Override
-    public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-        SectionListAdapter adapter = (SectionListAdapter) this.sectionsListView.getAdapter();
-        Section clickedSection = (Section) adapter.getItem(position);
+//    @Override
+//    public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+//        SectionListAdapter adapter = (SectionListAdapter) this.sectionsListView.getAdapter();
+//        Section clickedSection = (Section) adapter.getItem(position);
+//
+//        Realm realm = Realm.getDefaultInstance();
+//        RealmQuery<Section> query = realm.where(Section.class).equalTo("id", clickedSection.getId());
+//        Section savedSection = query.findFirst();
+//        boolean sectionIsRegistered = savedSection != null;
+//
+//        if (sectionIsRegistered) {
+//            // Deregister the section
+//            this.trackDeregistrationEvent(savedSection);
+//            realm.beginTransaction();
+//            savedSection.removeFromRealm();
+//            realm.commitTransaction();
+//        } else {
+//            // Register the section
+//            this.trackRegistrationEvent(clickedSection);
+//            realm.beginTransaction();
+//            realm.copyToRealmOrUpdate(clickedSection);
+//            realm.commitTransaction();
+//        }
+//
+//        realm.close();
+//
+//        adapter.notifyDataSetChanged(); // update views
+//    }
 
-        Realm realm = Realm.getDefaultInstance();
-        RealmQuery<Section> query = realm.where(Section.class).equalTo("id", clickedSection.getId());
-        Section savedSection = query.findFirst();
-        boolean sectionIsRegistered = savedSection != null;
+//    private void trackRegistrationEvent(Section section) {
+//        this.trackSectionEvent(section, true);
+//    }
 
-        if (sectionIsRegistered) {
-            // Deregister the section
-            this.trackDeregistrationEvent(savedSection);
-            realm.beginTransaction();
-            savedSection.removeFromRealm();
-            realm.commitTransaction();
-        } else {
-            // Register the section
-            this.trackRegistrationEvent(clickedSection);
-            realm.beginTransaction();
-            realm.copyToRealmOrUpdate(clickedSection);
-            realm.commitTransaction();
-        }
+//    private void trackDeregistrationEvent(Section section) {
+//        this.trackSectionEvent(section, false);
+//    }
 
-        realm.close();
+//    private void trackSectionEvent(Section section, boolean isRegistering) {
+//        int actionStringResourceID = isRegistering ? R.string.register_section_action_name : R.string.deregister_section_action_name;
+//        String sectionStr =  section.getCourse().getDepartment() + " " + section.getCourse().getNumber() + ": " + section.getName();
+//        Tracker tracker = GoogleAnalyticsTrackerService.getDefaultTracker(this.getActivity());
+//        tracker.send(new HitBuilders.EventBuilder()
+//                .setCategory(this.getString(R.string.section_category_name))
+//                .setAction(this.getString(actionStringResourceID))
+//                .setLabel(sectionStr)
+//                .setValue(section.getId())
+//                .build());
+//    }
 
-        adapter.notifyDataSetChanged(); // update views
-    }
+//    @Override
+//    public void onLoaded(List<Section> sections) {
+//        if (this.loadingDialog != null && this.loadingDialog.isShowing()) {
+//            this.loadingDialog.dismiss();
+//        }
+//    }
+//
+//    @Override
+//    public void onLoadingError(Throwable t) {
+//        t.printStackTrace();
+//        if (this.loadingDialog != null && this.loadingDialog.isShowing()) {
+//            this.loadingDialog.dismiss();
+//        }
+//    }
 
-    private void trackRegistrationEvent(Section section) {
-        this.trackSectionEvent(section, true);
-    }
-
-    private void trackDeregistrationEvent(Section section) {
-        this.trackSectionEvent(section, false);
-    }
-
-    private void trackSectionEvent(Section section, boolean isRegistering) {
-        int actionStringResourceID = isRegistering ? R.string.register_section_action_name : R.string.deregister_section_action_name;
-        String sectionStr =  section.getCourse().getDepartment() + " " + section.getCourse().getNumber() + ": " + section.getName();
-        Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
-        tracker.send(new HitBuilders.EventBuilder()
-                .setCategory(this.getString(R.string.section_category_name))
-                .setAction(this.getString(actionStringResourceID))
-                .setLabel(sectionStr)
-                .setValue(section.getId())
-                .build());
-    }
-
-    @Override
-    public void onLoaded(List<Section> sections) {
-        if (this.loadingDialog != null && this.loadingDialog.isShowing()) {
-            this.loadingDialog.dismiss();
-        }
-    }
-
-    @Override
-    public void onLoadingError(Exception e) {
-        e.printStackTrace();
-        if (this.loadingDialog != null && this.loadingDialog.isShowing()) {
-            this.loadingDialog.dismiss();
-        }
+    public static interface SettingsFragmentInteractionListener {
+        void registeredForSection();
+        void deregisteredForSection();
     }
 }

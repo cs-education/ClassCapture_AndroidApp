@@ -4,6 +4,7 @@ import com.classtranscribe.classcapture.models.Course;
 
 import java.util.List;
 
+import retrofit.Call;
 import retrofit.Callback;
 import retrofit.http.GET;
 import retrofit.http.Path;
@@ -13,10 +14,10 @@ import retrofit.http.Path;
  */
 public interface CourseService {
 
-    @GET("/course")
+    @GET("/api/course")
     void listCourses(Callback<List<Course>> cb);
 
-    @GET("/course/{id}")
-    void getCourse(@Path("id") long courseId,Callback<Course> cb);
+    @GET("/api/course/{id}")
+    Call<Course> getCourse(@Path("id") long courseId);
 
 }

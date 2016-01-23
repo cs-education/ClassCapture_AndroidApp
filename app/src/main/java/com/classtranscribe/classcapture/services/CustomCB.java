@@ -25,6 +25,11 @@ public abstract class CustomCB<T> implements Callback<T> {
         this.errMsgPrefix = errMsgPrefix;
     }
 
+    public CustomCB(Context context, Class<?> clazz) {
+        this.context = context;
+        this.errMsgPrefix = clazz.getSimpleName();
+    }
+
     @Override
     public abstract void onResponse(Response<T> response, Retrofit retrofit);
 

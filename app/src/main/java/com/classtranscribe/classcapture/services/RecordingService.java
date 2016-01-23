@@ -19,24 +19,21 @@ import retrofit.http.Path;
  */
 public interface RecordingService {
 
-    @GET("/recording")
-    void listRecordings(Callback<List<Recording>> cb);
+    @GET("/api/recording")
+    Call<List<Recording>> listRecordings();
 
-    @GET("/recording/{id}")
-    void getRecording(@Path("id") long recordingId, Callback<Recording> cb);
+    @GET("/api/recording/{id}")
+    Call<Recording> getRecording(@Path("id") long recordingId);
 
-    @POST("/recording")
-    void newRecording(@Body Recording recording, Callback<Recording> cb);
-
-    @POST("/recording")
+    @POST("/api/recording")
     Call<Recording> newRecording(@Body Recording recording);
 
     @Multipart
-    @POST("/video/{videoname}")
+    @POST("/api/video/{videoname}")
     void uploadRecordingVideo(@Path("videoname") String videoname, @Part("video") RequestBody videoFile, Callback<Object> cb);
 
     @Multipart
-    @POST("/video/{videoname}")
+    @POST("/api/video/{videoname}")
     Call uploadRecordingVideo(@Path("videoname") String videoname, @Part("video") RequestBody videoFile);
 
 }

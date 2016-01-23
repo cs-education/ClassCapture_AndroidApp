@@ -2,6 +2,7 @@ package com.classtranscribe.classcapture.controllers.activities;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
@@ -21,10 +22,16 @@ import com.classtranscribe.classcapture.controllers.fragments.NavigationDrawerFr
 import com.classtranscribe.classcapture.controllers.fragments.RecordingsFragment;
 import com.classtranscribe.classcapture.controllers.fragments.SettingsFragment;
 import com.classtranscribe.classcapture.controllers.fragments.VideoCaptureFragment;
+import com.classtranscribe.classcapture.models.Course;
 import com.classtranscribe.classcapture.models.Recording;
+import com.classtranscribe.classcapture.models.Section;
+import com.classtranscribe.classcapture.models.User;
+import com.classtranscribe.classcapture.services.CustomCB;
 import com.classtranscribe.classcapture.services.GoogleAnalyticsTrackerService;
 import com.classtranscribe.classcapture.services.UploadAlarmReceiver;
 import com.classtranscribe.classcapture.services.UploadQueueProvider;
+import com.classtranscribe.classcapture.services.UserService;
+import com.classtranscribe.classcapture.services.UserServiceProvider;
 import com.google.android.gms.analytics.HitBuilders;
 import com.google.android.gms.analytics.Tracker;
 
@@ -32,16 +39,18 @@ import java.io.IOException;
 
 import io.realm.Realm;
 import io.realm.RealmConfiguration;
+import retrofit.Response;
+import retrofit.Retrofit;
 
 
 public class MainActivity extends ActionBarActivity
-        implements NavigationDrawerFragment.NavigationDrawerCallbacks,RecordingsFragment.OnFragmentInteractionListener,VideoCaptureFragment.OnFragmentInteractionListener {
+        implements NavigationDrawerFragment.NavigationDrawerCallbacks,RecordingsFragment.OnFragmentInteractionListener,VideoCaptureFragment.OnFragmentInteractionListener,
+        SettingsFragment.SettingsFragmentInteractionListener{
 
     public static final int REQUEST_VIDEO_CAPTURE = 1; // request code
 
-    public static final int RECORDINGS_FRAGMENT_POSITION = 0;
-    public static final int VIDEO_CAPTURE_FRAGMENT_POSITION = 1;
-    public static final int SETTINGS_FRAGMENT_POSITION = 2;
+    public static final int VIDEO_CAPTURE_FRAGMENT_POSITION = 0;
+    public static final int LOGOUT_ITEM_POSITION = 1;
 
     public static boolean UPLOAD_ALARM_HAS_BEEN_SET = false;
     /**
@@ -60,15 +69,15 @@ public class MainActivity extends ActionBarActivity
     private VideoCaptureFragment.VideoCaptureListener captureListener;
 
     Realm defaultRealm;
-    Realm videoUploadRealm;
-    private Tracker defaultTracker;
+
+    User currUser;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         // Set up info for libraries
-        this.setupDefaultRealm();
+        this.defaultRealm = Realm.getDefaultInstance();
         UploadService.NAMESPACE = this.getPackageName(); // Sets so service can know which app to direct updates to...i think
 
         setContentView(R.layout.activity_main);
@@ -82,6 +91,8 @@ public class MainActivity extends ActionBarActivity
         navigationDrawerFragment.setUp(
                 R.id.navigation_drawer,
                 (DrawerLayout) findViewById(R.id.drawer_layout));
+
+        this.setCurrentUser();
     }
 
     @Override
@@ -90,15 +101,14 @@ public class MainActivity extends ActionBarActivity
         Tracker tracker = GoogleAnalyticsTrackerService.getDefaultTracker(this);
         tracker.setScreenName(this.getString(R.string.main_activity_screen_name));
         tracker.send(new HitBuilders.ScreenViewBuilder().build());
-
-        if (!UPLOAD_ALARM_HAS_BEEN_SET) {
-            this.scheduleUploadAlarm();
-            UPLOAD_ALARM_HAS_BEEN_SET = true;
-        }
     }
 
     @Override
     public void onNavigationDrawerItemSelected(int position) {
+        if (position == LOGOUT_ITEM_POSITION) {
+            this.doLogout();
+            return;
+        }
         // update the main content by replacing fragments
         FragmentManager fragmentManager = getSupportFragmentManager();
         fragmentManager.beginTransaction()
@@ -113,15 +123,58 @@ public class MainActivity extends ActionBarActivity
      */
     public Fragment getFragmentInstance(int position) {
         switch (position) {
-            case RECORDINGS_FRAGMENT_POSITION:
-                return RecordingsFragment.newInstance();
             case VIDEO_CAPTURE_FRAGMENT_POSITION:
                 return VideoCaptureFragment.newInstance();
-            case SETTINGS_FRAGMENT_POSITION:
-                return SettingsFragment.newInstance();
             default:
                 return RecordingsFragment.newInstance();
         }
+    }
+
+    /**
+     * Sends logout request and goes back to login activity while showing a modal dialog
+     */
+    public void doLogout() {
+        final ProgressDialog dialog = new ProgressDialog(this);
+        dialog.setTitle(getString(R.string.logout_dialog_title));
+        dialog.setMessage(getString(R.string.logout_dialog_message));
+        dialog.setCancelable(false);
+        dialog.show();
+
+        UserServiceProvider.getInstance(this).logout().enqueue(new CustomCB<Object>(this, MainActivity.class) {
+            @Override
+            public void onResponse(Response<Object> response, Retrofit retrofit) {
+                MainActivity.this.clearDB();
+                MainActivity.this.goBackToLogin();
+                dialog.dismiss();
+            }
+
+            @Override
+            public void onRequestFailure(Throwable t) {
+                t.printStackTrace();
+                MainActivity.this.clearDB();
+                MainActivity.this.goBackToLogin();
+                dialog.dismiss();
+            }
+        });
+    }
+
+    void clearDB() {
+        Realm realm = Realm.getDefaultInstance();
+        try {
+            realm.beginTransaction();
+            realm.clear(User.class);
+            realm.clear(Course.class);
+            realm.clear(Section.class);
+            realm.commitTransaction();
+        } finally {
+            realm.close();
+        }
+    }
+
+    void goBackToLogin() {
+        Intent intent = new Intent(this, LoginActivity.class);
+        this.startActivity(intent);
+        this.finish();
     }
 
     public void restoreActionBar() {
@@ -131,34 +184,44 @@ public class MainActivity extends ActionBarActivity
         actionBar.setTitle(title);
     }
 
+    public void setCurrentUser() {
+        this.currUser = this.defaultRealm.where(User.class).findFirst();
+        if (this.currUser == null) {
+            Toast.makeText(this, "Login Malfunction", Toast.LENGTH_LONG).show();
+            this.doLogout();
+        } else {
+            // Send request to /user/me endpoint to get most up to date user info
+            UserServiceProvider.getInstance(this).me().enqueue(new CustomCB<User>(this, MainActivity.class) {
+                @Override
+                public void onResponse(Response<User> response, Retrofit retrofit) {
+                    if (response.isSuccess()) {
+                        User updatedUser = response.body();
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        if (!navigationDrawerFragment.isDrawerOpen()) {
-            // Only show items in the action bar relevant to this screen
-            // if the drawer is not showing. Otherwise, let the drawer
-            // decide what to show in the action bar.
-            getMenuInflater().inflate(R.menu.main, menu);
-            restoreActionBar();
-            return true;
+                        // Check if IDs are same
+                        if (updatedUser.getId() == MainActivity.this.currUser.getId()) {
+                            MainActivity.this.defaultRealm.beginTransaction();
+                            MainActivity.this.defaultRealm.copyToRealmOrUpdate(updatedUser);
+                            MainActivity.this.defaultRealm.commitTransaction();
+                            MainActivity.this.currUser = updatedUser;
+                        } else {
+                            // Something's gone wrong...IDs don't match...logout
+                            Toast.makeText(MainActivity.this, "Login Malfunction", Toast.LENGTH_LONG).show();
+                            MainActivity.this.doLogout();
+                        }
+                    } else {
+                        // The auth cookie might've expired...logout
+                        MainActivity.this.doLogout();
+                    }
+                }
+
+                @Override
+                public void onRequestFailure(Throwable t) {
+                    t.printStackTrace();
+                    Toast.makeText(MainActivity.this, "Login Malfunction", Toast.LENGTH_LONG).show();
+                    MainActivity.this.doLogout();
+                }
+            });
         }
-        return super.onCreateOptionsMenu(menu);
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            this.onNavigationDrawerItemSelected(SETTINGS_FRAGMENT_POSITION);
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
     }
 
     @Override
@@ -204,7 +267,7 @@ public class MainActivity extends ActionBarActivity
      */
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == REQUEST_VIDEO_CAPTURE && resultCode == RESULT_OK) {
+        if (requestCode == REQUEST_VIDEO_CAPTURE && resultCode == RESULT_OK && this.captureListener != null) {
             Uri videoUri = data.getData();
             this.captureListener.onVideoCapture(videoUri);
         } else {
@@ -212,39 +275,35 @@ public class MainActivity extends ActionBarActivity
         }
     }
 
-    /**
-     * Sets Default realm config and sets this.defaultRealm
-     */
-    private void setupDefaultRealm() {
-        RealmConfiguration.Builder configBuilder = new RealmConfiguration.Builder(this);
-        RealmConfiguration defaultConfig = configBuilder.build();
-        Realm.setDefaultConfiguration(defaultConfig);
-        this.defaultRealm = Realm.getDefaultInstance();
-    }
-
     @Override
     public void onDestroy() {
         super.onDestroy();
         this.defaultRealm.close();
-        this.videoUploadRealm.close();
     }
 
-    /*
-     * Setup a recurring alarm every half hour
-     * Got this from here: https://guides.codepath.com/android/Starting-Background-Services#using-with-alarmmanager-for-periodic-tasks
-     */
-    public void scheduleUploadAlarm() {
-        // Construct an intent that will execute the AlarmReceiver
-        Intent intent = new Intent(getApplicationContext(), UploadAlarmReceiver.class);
-        // Create a PendingIntent to be triggered when the alarm goes off
-        final PendingIntent pIntent = PendingIntent.getBroadcast(this, UploadAlarmReceiver.REQUEST_CODE,
-                intent, PendingIntent.FLAG_UPDATE_CURRENT);
-        // Setup periodic alarm every 5 seconds
-        long firstMillis = System.currentTimeMillis(); // alarm is set right away
-        AlarmManager alarm = (AlarmManager) this.getSystemService(Context.ALARM_SERVICE);
-        // First parameter is the type: ELAPSED_REALTIME, ELAPSED_REALTIME_WAKEUP, RTC_WAKEUP
-        // Interval can be INTERVAL_FIFTEEN_MINUTES, INTERVAL_HALF_HOUR, INTERVAL_HOUR, INTERVAL_DAY
-        alarm.setInexactRepeating(AlarmManager.RTC_WAKEUP, firstMillis,
-                AlarmManager.INTERVAL_HALF_HOUR, pIntent);
+    public void openSettingsInBrowser() {
+        String settingsURL = this.getString(R.string.api_base_url) + this.getString(R.string.account_settings_endpoint);
+        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(settingsURL));
+        this.startActivity(intent);
+    }
+
+    @Override
+    public void registeredForSection() {
+
+    }
+
+    @Override
+    public void deregisteredForSection() {
+        // First check if any section objects exist
+        Realm realm = Realm.getDefaultInstance();
+        boolean noRegisteredSections = realm.allObjects(Section.class).isEmpty();
+
+        if (noRegisteredSections) {
+
+        }
+    }
+
+    public User getCurrentUser() {
+        return this.currUser;
     }
 }

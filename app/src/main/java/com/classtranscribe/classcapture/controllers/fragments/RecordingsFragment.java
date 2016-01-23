@@ -11,6 +11,7 @@ import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.adapters.RecordingsListAdapter;
 import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Recording;
+import com.classtranscribe.classcapture.services.GoogleAnalyticsTrackerService;
 import com.google.android.gms.analytics.HitBuilders;
 import com.google.android.gms.analytics.Tracker;
 
@@ -50,7 +51,7 @@ public class RecordingsFragment extends ListFragment {
     @Override
     public void onResume() {
         super.onResume();
-        Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
+        Tracker tracker = GoogleAnalyticsTrackerService.getDefaultTracker(this.getActivity());
         tracker.setScreenName(this.getString(R.string.recording_screen_name));
         tracker.send(new HitBuilders.ScreenViewBuilder().build());
     }
@@ -94,11 +95,11 @@ public class RecordingsFragment extends ListFragment {
     }
 
     public void trackWatchRecordingEvent(Recording recording) {
-        Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
+        Tracker tracker = GoogleAnalyticsTrackerService.getDefaultTracker(this.getActivity());
         tracker.send(new HitBuilders.EventBuilder()
                 .setCategory(this.getString(R.string.recording_category_name))
                 .setAction(this.getString(R.string.watch_recording_action_name))
-                .setValue(recording.id)
+                .setValue(recording.getId())
                 .build());
     }
 

@@ -3,17 +3,12 @@ package com.classtranscribe.classcapture.android_services;
 import android.app.IntentService;
 import android.content.Intent;
 
-import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Recording;
 import com.classtranscribe.classcapture.services.UploadQueueProvider;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
-
-import io.realm.Realm;
-import io.realm.RealmConfiguration;
-import io.realm.RealmResults;
 
 /**
  * An {@link IntentService} subclass for handling asynchronous task requests in
@@ -30,15 +25,10 @@ public class VideoUploadIntentService extends IntentService {
 
     @Override
     protected void onHandleIntent(Intent intent) {
-        if (intent != null) {
-            final String action = intent.getAction();
-            if (ACTION_UPLOAD.equals(action)) {
-                try {
-                    this.handleActionUpload();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
+        try {
+            this.handleActionUpload();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -55,7 +45,7 @@ public class VideoUploadIntentService extends IntentService {
             try {
                 Recording dbRecording = it.next();
                 // Only create the entry in the backend if its not already there. Check the fromDatabase flag for that.
-                if (!dbRecording.isFromDatabase()) {
+                if (!dbRecording.isFromAPI()) {
                     dbRecording.uploadRecordingSync(this);
                 }
                 // upload the video

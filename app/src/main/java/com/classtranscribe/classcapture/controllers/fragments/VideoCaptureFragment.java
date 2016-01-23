@@ -15,25 +15,35 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.widget.VideoView;
 
+import com.bumptech.glide.Glide;
 import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.adapters.SectionSpinnerAdapter;
 import com.classtranscribe.classcapture.controllers.activities.MainActivity;
+import com.classtranscribe.classcapture.models.Course;
 import com.classtranscribe.classcapture.models.Recording;
 import com.classtranscribe.classcapture.models.Section;
+import com.classtranscribe.classcapture.models.User;
 import com.classtranscribe.classcapture.services.CustomCB;
 import com.classtranscribe.classcapture.services.GoogleAnalyticsTrackerService;
+import com.classtranscribe.classcapture.services.RealmQueryUtils;
+import com.classtranscribe.classcapture.services.image_transforms.BlurTransform;
+import com.classtranscribe.classcapture.services.image_transforms.BrightnessTransform;
 import com.google.android.gms.analytics.HitBuilders;
 import com.google.android.gms.analytics.Tracker;
 
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
+import java.util.Map;
 
-import retrofit.Callback;
+import io.realm.Realm;
+import io.realm.RealmResults;
 import retrofit.Response;
 import retrofit.Retrofit;
 
@@ -55,11 +65,12 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
     private static final String VIDEO_HAS_BEEN_CAPTURED = "videoCaptured";
     private static final String HAS_BEEN_INITIALIZED = "hasBeenInitialized";
     private static final String FRAG_HIT_HAS_BEEN_TRACKED = "hitTracked";
+    private static final String VIDEO_UPLOADED = "videoUploaded";
 
     private OnFragmentInteractionListener listener;
 
     // View references
-    VideoView videoView;
+    ImageView imageView;
     TextView recordingDurationTextView;
     Button uploadButton;
     Spinner sectionSpinner;
@@ -69,7 +80,9 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
 
     // Section to be attached with recording
     Section chosenSection;
-    private SimpleDateFormat dateFormat = new SimpleDateFormat("h:mm:ss a"); // format with which start and end time of video will be displayed
+    private SimpleDateFormat dateFormat = new SimpleDateFormat("h:mm a"); // format with which start and end time of video will be displayed
+
+    Realm realm;
 
     /**
      * Use this factory method to create a new instance of
@@ -84,6 +97,7 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
         args.putBoolean(VIDEO_HAS_BEEN_CAPTURED, false);
         args.putBoolean(HAS_BEEN_INITIALIZED, false);
         args.putBoolean(FRAG_HIT_HAS_BEEN_TRACKED, false);
+        args.putBoolean(VIDEO_UPLOADED, false);
 
         fragment.setArguments(args);
         return fragment;
@@ -120,7 +134,7 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
      */
     public void initFragmentInstance() {
         // Init view variables
-        this.videoView = (VideoView) this.getView().findViewById(R.id.video_view);
+        this.imageView = (ImageView) this.getView().findViewById(R.id.thumbnail_image_view);
         this.recordingDurationTextView = (TextView) this.getView().findViewById(R.id.recording_duration_textview);
         this.uploadButton = (Button) this.getView().findViewById(R.id.upload_button);
         this.sectionSpinner = (Spinner) this.getView().findViewById(R.id.section_spinner);
@@ -133,22 +147,48 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
             }
         });
 
+        this.realm = Realm.getDefaultInstance();
+
         // Init section spinner with User's registered sections
         // All sections stored in Realm DB are sections that user has registered for
         // Apparently, running queries on UI thread isn't too big of a deal:
         //  http://stackoverflow.com/questions/27805580/realm-io-and-asynchronous-queries
         // Given our data-set will be really small anyways, I think its worth just doing on UI thread for cleanliness
-        this.sectionSpinner.setAdapter(new SectionSpinnerAdapter(getActivity()));
-        this.sectionSpinner.setOnItemSelectedListener(this);
+        final MainActivity parentActivity = (MainActivity) VideoCaptureFragment.this.getActivity();
+        final User loggedInUser = VideoCaptureFragment.this.realm.where(User.class).findFirst();
+        final List<Long> sectionIDs = RealmQueryUtils.getObjectIDs(loggedInUser.getSections(), new Section.SectionRetriever(parentActivity));
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    RealmQueryUtils.downloadLinkedCourses(parentActivity, sectionIDs);
+                    parentActivity.runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            VideoCaptureFragment.this.sectionSpinner.setAdapter(new SectionSpinnerAdapter(parentActivity, realm, loggedInUser.getSections()));
+                            VideoCaptureFragment.this.sectionSpinner.setOnItemSelectedListener(VideoCaptureFragment.this);
+                        }
+                    });
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+
     }
 
     // Called when a section is selected from the spinner
     @Override
     public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+        if (this.chosenSection == null) {
+            // this is the first call to onItemSelected...first call triggers dispatchTakeVideoIntent()
+            // Start video capture
+            this.dispatchTakeVideoIntent();
+        }
+
         this.chosenSection = (Section) this.sectionSpinner.getItemAtPosition(position);
-        this.uploadButton.setEnabled(true);
-        // Start video capture
-        this.dispatchTakeVideoIntent();
+        boolean videoNotUploaded = !this.getArguments().getBoolean(VIDEO_UPLOADED, false);
+        this.uploadButton.setEnabled(videoNotUploaded); // Only want to enable button if the video wasnt already uploaded
     }
 
     @Override
@@ -164,9 +204,10 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         MainActivity mainActivity = (MainActivity) VideoCaptureFragment.this.getActivity();
-                        mainActivity.onNavigationDrawerItemSelected(MainActivity.SETTINGS_FRAGMENT_POSITION);
+                        mainActivity.openSettingsInBrowser();
                     }
-                }).create();
+                })
+                .create();
 
         goToSettingsDialog.show();
     }
@@ -208,9 +249,11 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
             final ProgressDialog progress = ProgressDialog.show(VideoCaptureFragment.this.getActivity(), UPLOAD_DIALOG_TITLE, UPLOAD_DIALOG_MESSAGE, true);
             progress.setCancelable(false); // Dialog will be modal
 
+            this.capturedRecording.setSection(this.chosenSection.getId());
             this.capturedRecording.uploadRecording((MainActivity) this.getActivity(), new CustomCB<Recording>(this.getActivity(), "Recording") {
                 @Override
                 public void onResponse(Response<Recording> response, Retrofit retrofit) {
+                    VideoCaptureFragment.this.getArguments().putBoolean(VIDEO_UPLOADED, true);
                     VideoCaptureFragment.this.listener.onVideoCaptureUploadSuccess(response.body());
                     progress.dismiss(); // Finally dismiss the progress dialog
                 }
@@ -244,9 +287,11 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
                             .this.getArguments();
                     fragArgs.putBoolean(VIDEO_HAS_BEEN_CAPTURED, true);
 
-                    // Set videoView to be showing the just captured video and start it
-                    VideoCaptureFragment.this.videoView.setVideoURI(videoUri);
-                    VideoCaptureFragment.this.videoView.start();
+                    // Set imageView to be showing the just captured video and start it
+                    Glide.with(getActivity())
+                            .load(videoUri) // will extract video thumbnail
+                            .bitmapTransform(new BlurTransform(getActivity()), new BrightnessTransform(getActivity()))
+                            .into(VideoCaptureFragment.this.imageView);
 
                     // Set end time of capturedRecording to current time
                     Context currContext = VideoCaptureFragment.this.getActivity();
@@ -282,9 +327,9 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
 
         // Format according to formatter declared above
         String startStr = this.dateFormat.format(start);
-        String endStr   = this.dateFormat.format(end);
+        String durationStr = getDurationDisplayString(end.getTime() - start.getTime());
 
-        String text = startStr + " to " + endStr;
+        String text = String.format("At %s for %s", startStr, durationStr);
         this.recordingDurationTextView.setText(text);
     }
 
@@ -314,6 +359,41 @@ public class VideoCaptureFragment extends Fragment implements AdapterView.OnItem
     public void onDetach() {
         super.onDetach();
         this.listener = null;
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        realm.close();
+    }
+
+    /**
+     * Gets a readable version of the input duration in millis
+     * @param durationMillis duration you want to display
+     * @return readable version of duration
+     */
+    private static String getDurationDisplayString(long durationMillis) {
+        final long SECOND_MILLIS = 1000;
+        final long MINUTE_MILLIS = 60 * SECOND_MILLIS;
+        final long HOUR_MILLIS = 60 * MINUTE_MILLIS;
+
+        long numHours = durationMillis / HOUR_MILLIS;
+        long numMinutes = (durationMillis % HOUR_MILLIS) / MINUTE_MILLIS;
+        long numSeconds = ((durationMillis % HOUR_MILLIS) % MINUTE_MILLIS) / SECOND_MILLIS;
+
+        String displayStr = "";
+
+        if (numSeconds > 0) {
+            displayStr = String.format("%ds", numSeconds);
+        }
+        if (numMinutes > 0) {
+            displayStr = String.format("%dm %s", numSeconds, displayStr);
+        }
+        if (numHours > 0) {
+            displayStr = String.format("%dh %s", numSeconds, displayStr);
+        }
+
+        return displayStr.equals("") ? "0 seconds" : displayStr.trim();
     }
 
     /**

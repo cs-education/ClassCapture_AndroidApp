@@ -2,6 +2,7 @@ package com.classtranscribe.classcapture.adapters;
 
 import android.content.Context;
 import android.database.DataSetObserver;
+import android.util.TypedValue;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.SpinnerAdapter;
@@ -11,7 +12,9 @@ import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.models.Course;
 import com.classtranscribe.classcapture.models.Section;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import io.realm.Realm;
 
@@ -21,11 +24,13 @@ import io.realm.Realm;
 public class SectionSpinnerAdapter implements SpinnerAdapter {
 
     private final Context context;
-    private final List<Section> registeredSections;
+    private final Realm realm;
+    private final List<Section> sections;
 
-    public SectionSpinnerAdapter(Context context) {
+    public SectionSpinnerAdapter(Context context, Realm realm, List<Section> sections) {
         this.context = context;
-        this.registeredSections = Realm.getDefaultInstance().allObjects(Section.class);
+        this.realm = realm;
+        this.sections = sections;
     }
 
     @Override
@@ -38,11 +43,12 @@ public class SectionSpinnerAdapter implements SpinnerAdapter {
             sectionListItemView = View.inflate(this.context, android.R.layout.simple_spinner_item, null);
         }
 
-        Section currSection = (Section) this.getItem(position);
-        Course currCourse = currSection.getCourse();
+        Section currSection = this.getItem(position);
+        Course currCourse = this.realm.where(Course.class).equalTo("id", currSection.getCourse()).findFirst();
         String sectionStr = currCourse.getDepartment() + " " + currCourse.getNumber() + ": " + currSection.getName();
 
         TextView sectionTextView = (TextView) sectionListItemView;
+        sectionTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 25);
         sectionTextView.setText(sectionStr);
 
         return sectionListItemView;
@@ -60,17 +66,17 @@ public class SectionSpinnerAdapter implements SpinnerAdapter {
 
     @Override
     public int getCount() {
-        return this.registeredSections.size();
+        return this.sections.size();
     }
 
     @Override
-    public Object getItem(int position) {
-        return this.registeredSections.get(position);
+    public Section getItem(int position) {
+        return this.sections.get(position);
     }
 
     @Override
     public long getItemId(int position) {
-        return this.registeredSections.get(position).getId();
+        return this.getItem(position).getId();
     }
 
     @Override
@@ -97,6 +103,6 @@ public class SectionSpinnerAdapter implements SpinnerAdapter {
 
     @Override
     public boolean isEmpty() {
-        return this.registeredSections.isEmpty();
+        return this.sections.isEmpty();
     }
 }

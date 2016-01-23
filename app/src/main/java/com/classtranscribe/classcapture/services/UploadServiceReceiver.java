@@ -47,18 +47,21 @@ public class UploadServiceReceiver extends AbstractUploadServiceReceiver {
         Log.d(LOG_TAG, "Upload with ID " + uploadId + "finished:");
         Log.d(LOG_TAG, "Status: " + serverResponseCode + "\tMessage: " + serverResponseMessage);
 
-        this.listener.onVideoCaptureUploadSuccess(this.recording);
+        if (serverResponseCode >= 200 && serverResponseCode < 300) {
+            this.listener.onVideoCaptureUploadSuccess(this.recording);
 
-        // In a different thread, make sure the video will be deleted if it still exists
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                File fileToDelete = new File(UploadServiceReceiver.this.recording.getVideoFilePath());
-                if (fileToDelete.exists()) {
-                    fileToDelete.delete(); // delete the file
+            // In a different thread, make sure the video will be deleted if it still exists
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    File fileToDelete = new File(UploadServiceReceiver.this.recording.getVideoFilePath());
+                    if (fileToDelete.exists()) {
+                        fileToDelete.delete(); // delete the file
+                    }
                 }
-            }
-        }).start();
+            }).start();
+        }
+
 
     }
 }

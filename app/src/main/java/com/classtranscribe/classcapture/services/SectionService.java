@@ -5,6 +5,7 @@ import com.classtranscribe.classcapture.models.Section;
 
 import java.util.List;
 
+import retrofit.Call;
 import retrofit.Callback;
 import retrofit.http.GET;
 import retrofit.http.Path;
@@ -14,10 +15,10 @@ import retrofit.http.Path;
  */
 public interface SectionService {
 
-    @GET("/section")
-    void listSections(Callback<List<Section>> cb);
+    @GET("/api/section")
+    Call<List<Section>> listSections();
 
-    @GET("/section/{id}")
-    void getSection(@Path("id") long courseId,Callback<Section> cb);
+    @GET("/api/section/{id}")
+    Call<Section> getSection(@Path("id") long courseId);
 
 }

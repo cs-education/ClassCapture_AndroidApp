@@ -26,6 +26,7 @@ import com.classtranscribe.classcapture.R;
 import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Course;
 import com.classtranscribe.classcapture.models.Section;
+import com.classtranscribe.classcapture.services.GoogleAnalyticsTrackerService;
 import com.google.android.gms.analytics.HitBuilders;
 import com.google.android.gms.analytics.Tracker;
 
@@ -102,7 +103,7 @@ public class NavigationDrawerFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
-        Tracker tracker = ((MainActivity) this.getActivity()).getDefaultTracker();
+        Tracker tracker = GoogleAnalyticsTrackerService.getDefaultTracker(this.getActivity());
         tracker.setScreenName(this.getString(R.string.nav_drawer_screen_name));
         tracker.send(new HitBuilders.ScreenViewBuilder().build());
     }
@@ -128,9 +129,8 @@ public class NavigationDrawerFragment extends Fragment {
                 android.R.layout.simple_list_item_activated_1,
                 android.R.id.text1,
                 new String[]{
-                        getString(R.string.title_section1),
                         getString(R.string.title_section2),
-                        getString(R.string.title_section3)
+                        getString(R.string.title_section4)
                 }));
         drawerListView.setItemChecked(currentSelectedPosition, true);
         return drawerListView;

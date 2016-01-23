@@ -3,29 +3,22 @@ package com.classtranscribe.classcapture.services;
 import android.content.Context;
 
 import com.classtranscribe.classcapture.R;
-import com.google.gson.ExclusionStrategy;
-import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.squareup.okhttp.OkHttpClient;
 
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 
-import io.realm.RealmObject;
 import retrofit.GsonConverterFactory;
 import retrofit.Retrofit;
 
 /**
- * Created by sourabhdesai on 9/17/15.
- * Singleton wrapper over SectionService instance created by Retrofit api
- * Docs for retrofit showing how this is done:
- *  http://square.github.io/retrofit/#restadapter-configuration
+ * Created by sourabhdesai on 1/15/16.
  */
-public class SectionServiceProvider {
-    private static SectionService ourInstance = null;
+public class UserServiceProvider {
+    private static UserService ourInstance = null;
 
-    public static SectionService getInstance(Context context) {
+    public static UserService getInstance(Context context) {
         if (ourInstance != null) {
             return ourInstance;
         }
@@ -49,7 +42,7 @@ public class SectionServiceProvider {
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build();
 
-        ourInstance = retrofit.create(SectionService.class);
+        ourInstance = retrofit.create(UserService.class);
 
         return ourInstance;
     }

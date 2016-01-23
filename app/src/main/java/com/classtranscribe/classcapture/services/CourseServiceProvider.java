@@ -9,6 +9,9 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.squareup.okhttp.OkHttpClient;
 
+import java.net.CookieManager;
+import java.net.CookiePolicy;
+
 import io.realm.RealmObject;
 import retrofit.GsonConverterFactory;
 import retrofit.Retrofit;
@@ -28,31 +31,23 @@ public class CourseServiceProvider {
         }
 
         // GSON converter with DateTime Type Adapter
-        Gson gson = new GsonBuilder()
-                .setDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
-                // Realm docs say this: https://realm.io/docs/java/latest/#retrofit
-                .setExclusionStrategies(new ExclusionStrategy() {
-                    @Override
-                    public boolean shouldSkipField(FieldAttributes f) {
-                        return f.getDeclaringClass().equals(RealmObject.class);
-                    }
-
-                    @Override
-                    public boolean shouldSkipClass(Class<?> clazz) {
-                        return false;
-                    }
-                })
-                .create();
+        Gson gson = GSONUtils.getConfiguredGsonBuilder()
+            .create();
 
         OkHttpClient client = new OkHttpClient();
         client.interceptors().add(new DeviceIDRequestInterceptor(context));
 
+        // Set cookie logic for OkHTTP client
+        PersistentCookieStore cookieStore = new PersistentCookieStore(context);
+        CookieManager cookieManager = new CookieManager(cookieStore, CookiePolicy.ACCEPT_ALL);
+        client.setCookieHandler(cookieManager);
+
         // Create rest adapter from RetroFit. Initialize endpoint
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(context.getString(R.string.api_base_url))
-                .client(client)
-                .addConverterFactory(GsonConverterFactory.create(gson))
-                .build();
+            .baseUrl(context.getString(R.string.api_base_url))
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build();
 
         ourInstance = retrofit.create(CourseService.class);
 

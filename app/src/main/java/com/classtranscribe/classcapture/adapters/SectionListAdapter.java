@@ -11,13 +11,19 @@ import com.classtranscribe.classcapture.controllers.activities.MainActivity;
 import com.classtranscribe.classcapture.models.Course;
 import com.classtranscribe.classcapture.models.Section;
 import com.classtranscribe.classcapture.services.CustomCB;
+import com.classtranscribe.classcapture.services.RealmQueryUtils;
 import com.classtranscribe.classcapture.services.SectionService;
 import com.classtranscribe.classcapture.services.SectionServiceProvider;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import io.realm.Realm;
+import retrofit.Call;
 import retrofit.Callback;
 import retrofit.Response;
 import retrofit.Retrofit;
@@ -30,14 +36,16 @@ public class SectionListAdapter implements ListAdapter {
     private final MainActivity context;
     private DataSetObserver observer;
     private List<Section> sections;
+    private Map<Section, Course> sectionCourseMap;
     // Keep track of whether the section at a particular position of the list has been updated locally from backend request
-    private boolean[] updatedSectionAt;
+    private BitSet updatedSectionAt;
     private OnSectionsLoadedListener onLoadedListener;
 
     public SectionListAdapter(MainActivity mainActivity) {
         this.context = mainActivity;
         this.sections = new ArrayList<Section>();
-        this.updatedSectionAt = new boolean[0];
+        this.sectionCourseMap = new HashMap<>(0);
+        this.updatedSectionAt = new BitSet();
         this.onLoadedListener = null;
     }
 
@@ -49,22 +57,42 @@ public class SectionListAdapter implements ListAdapter {
     public void registerDataSetObserver(final DataSetObserver observer) {
         this.observer = observer;
         SectionService sectionService = SectionServiceProvider.getInstance(this.context);
-        sectionService.listSections(new CustomCB<List<Section>>(this.context, SectionListAdapter.class.getName()) {
+        Call<List<Section>> call = sectionService.listSections();
+        call.enqueue(new CustomCB<List<Section>>(this.context, SectionListAdapter.class.getName()) {
+
             @Override
             public void onResponse(Response<List<Section>> response, Retrofit retrofit) {
                 SectionListAdapter.this.sections = response.body();
-                SectionListAdapter.this.updatedSectionAt = new boolean[sections.size()];
+                SectionListAdapter.this.updatedSectionAt = new BitSet(sections.size());
+                final List<Long> sectionIDs = RealmQueryUtils.getObjectIDs(SectionListAdapter.this.sections, new Section.SectionRetriever(context));
+                // RealmQueryUtils.downloadLinkedCourses is a VERY expensive call, must run in different thread
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Realm realm = Realm.getDefaultInstance();
 
-                // notify the listener if its set
-                if (SectionListAdapter.this.onLoadedListener != null) {
-                    SectionListAdapter.this.onLoadedListener.onLoaded(sections);
-                }
+                        try {
+                            RealmQueryUtils.downloadLinkedCourses(context, sectionIDs);
+                            // notify the listener if its set
+                            if (SectionListAdapter.this.onLoadedListener != null) {
+                                SectionListAdapter.this.onLoadedListener.onLoaded(sections);
+                            }
 
-                observer.onChanged();
+                            observer.onChanged();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        } finally {
+                            realm.close();
+                        }
+                    }
+                }).start();
+
+
             }
 
             @Override
             public void onRequestFailure(Throwable t) {
+                t.printStackTrace();
                 if (SectionListAdapter.this.onLoadedListener != null) {
                     SectionListAdapter.this.onLoadedListener.onLoadingError(t);
                 }
@@ -114,7 +142,7 @@ public class SectionListAdapter implements ListAdapter {
         }
 
         Section currSection = (Section) this.getItem(position);
-        Course currCourse = currSection.getCourse();
+        Course currCourse = this.sectionCourseMap.get(currSection);
         String sectionStr = currCourse.getDepartment() + " " + currCourse.getNumber() + ": " + currSection.getName();
 
         CheckedTextView checkedTextView = (CheckedTextView) itemView;
@@ -125,13 +153,13 @@ public class SectionListAdapter implements ListAdapter {
         boolean sectionIsRegistered = registeredSection != null;
         checkedTextView.setChecked(sectionIsRegistered);
 
-        boolean alreadyUpdatedLocally = SectionListAdapter.this.updatedSectionAt[position];
+        boolean alreadyUpdatedLocally = SectionListAdapter.this.updatedSectionAt.get(position);
         if (sectionIsRegistered && !alreadyUpdatedLocally) {
             // Update local copy of currSection with one received from backend
             realm.beginTransaction();
             realm.copyToRealmOrUpdate(currSection);
             realm.commitTransaction();
-            this.updatedSectionAt[position] = true;
+            this.updatedSectionAt.set(position);
         }
 
         realm.close();

@@ -18,6 +18,7 @@ import com.classtranscribe.classcapture.services.RecordingServiceProvider;
 import java.util.ArrayList;
 import java.util.List;
 
+import retrofit.Call;
 import retrofit.Callback;
 import retrofit.Response;
 import retrofit.Retrofit;
@@ -54,10 +55,12 @@ public class RecordingsListAdapter implements ListAdapter {
     public void registerDataSetObserver(final DataSetObserver observer) {
         // While the DataSetObserver is still in scope, make the request
         // Can call on observers methods within callback
-        this.recordingService.listRecordings(new CustomCB<List<Recording>>(this.context, RecordingsListAdapter.class.getName()) {
+        Call<List<Recording>> req = this.recordingService.listRecordings();
+        req.enqueue(new CustomCB<List<Recording>>(this.context, RecordingsListAdapter.class.getName()) {
             @Override
             public void onResponse(Response<List<Recording>> response, Retrofit retrofit) {
-                RecordingsListAdapter.this.recordings = response.body();
+                List<Recording> results = response.body();
+                RecordingsListAdapter.this.recordings = results == null ? RecordingsListAdapter.this.recordings : results;
                 observer.onChanged();
             }
 

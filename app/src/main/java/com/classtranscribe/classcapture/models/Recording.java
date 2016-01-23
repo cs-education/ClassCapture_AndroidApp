@@ -27,10 +27,8 @@ import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Objects;
 import java.util.TimeZone;
 
-import io.realm.RealmObject;
 import retrofit.Call;
 import retrofit.Callback;
 import retrofit.Response;
@@ -66,23 +64,23 @@ public class Recording {
 
     private String videoFilePath;
 
-    private boolean isFromDatabase; // specifies whether this recording was constructed from a API response
+    private boolean isFromAPI; // specifies whether this recording was constructed from a API response
 
     public Recording() {
         // does nothing
     }
 
     public Recording(Date startTime, Date endTime, long section) {
-        this.isFromDatabase = false;
+        this.isFromAPI = false;
         this.startTime = startTime;
         this.endTime = endTime;
         this.section = section;
     }
 
     public Recording(Context context, Uri videoUri, long section) {
-        this.isFromDatabase = false;
-        this.videoFilePath = getFilePathFromURI(context, videoUri);
         this.section = section;
+        this.isFromAPI = false;
+        this.videoFilePath = getFilePathFromURI(context, videoUri);
 
         // Query MediaStore for metadata on retrieved video.
         // Set instance variables according to metadata
@@ -99,7 +97,7 @@ public class Recording {
 
             Log.d("yo!", "dateStr = " + startDateStr);
 
-            TimeZone timeZone = TimeZone.getDefault();
+            TimeZone timeZone = TimeZone.getTimeZone("UTC");
             DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd'T'HHmmss.SSS");
             dateFormat.setTimeZone(timeZone);
 
@@ -187,17 +185,17 @@ public class Recording {
      * @param other recording to copy fields over form
      */
     private void copy(Recording other) {
-        this.startTime = other.startTime != null ? this.startTime : other.startTime;
-        this.endTime = other.endTime != null ? this.endTime : other.endTime;
-        this.filename = other.filename != null ? this.filename : other.filename;
-        this.id = other.id >= 0 ? this.id : other.id;
-        this.section = other.section >= 0 ? this.section : other.section; // Id for section that this recording is for
-        this.createdAt = other.createdAt != null ? this.createdAt : other.createdAt;
-        this.updatedAt = other.updatedAt != null ? this.updatedAt : other.updatedAt;
+        this.startTime = other.startTime == null ? this.startTime : other.startTime;
+        this.endTime = other.endTime == null ? this.endTime : other.endTime;
+        this.filename = other.filename == null ? this.filename : other.filename;
+        this.id = other.id < 0 ? this.id : other.id;
+        this.section = other.section == -1 ? this.section : other.section; // Id for section that this recording is for
+        this.createdAt = other.createdAt == null ? this.createdAt : other.createdAt;
+        this.updatedAt = other.updatedAt == null ? this.updatedAt : other.updatedAt;
 
-        this.videoFilePath = other.videoFilePath != null ? this.videoFilePath : other.videoFilePath;
+        this.videoFilePath = other.videoFilePath == null ? this.videoFilePath : other.videoFilePath;
 
-        this.isFromDatabase =this.isFromDatabase || other.isFromDatabase; // specifies whether this recording was constructed from a API response
+        this.isFromAPI = this.isFromAPI || other.isFromAPI; // specifies whether this recording was constructed from a API response
     }
 
     /**
@@ -212,51 +210,56 @@ public class Recording {
         }
 
         final RecordingService recordingService = RecordingServiceProvider.getInstance(mainActivity);
-
-        recordingService.newRecording(this, new Callback<Recording>() {
+        Call<Recording> call = recordingService.newRecording(this);
+        call.enqueue(new Callback<Recording>() {
             @Override
             public void onResponse(Response<Recording> response, Retrofit retrofit) {
-                // Created new recording
-                // Now upload the video recording with the filename given by the Recording in the response
-                // Upload the video in a service
-                Recording recording = response.body();
-                recording.isFromDatabase = true;
-                Recording.this.copy(recording); // update this recordings fields with response fields
+                if (response.isSuccess()) {
+                    // Created new recording
+                    // Now upload the video recording with the filename given by the Recording in the response
+                    // Upload the video in a service
+                    Recording recording = response.body();
+                    recording.isFromAPI = true;
+                    Recording.this.copy(recording); // update this recordings fields with response fields
 
-                final String uploadID = String.valueOf(recording.id); // Can just make upload ID be the ID of the recording
-                final String uploadURL = recording.getVideoURL(mainActivity);
-                final String deviceID = SettingsService.getDeviceID(mainActivity); // to add to header
-                final String deviceIDHeader = mainActivity.getString(R.string.device_id_header);
-                final String videoParamName = mainActivity.getString(R.string.video_upload_tag);
+                    final String uploadID = String.valueOf(recording.id); // Can just make upload ID be the ID of the recording
+                    final String uploadURL = recording.getVideoURL(mainActivity);
+                    final String deviceID = SettingsService.getDeviceID(mainActivity); // to add to header
+                    final String deviceIDHeader = mainActivity.getString(R.string.device_id_header);
+                    final String videoParamName = mainActivity.getString(R.string.video_upload_tag);
 
-                UploadRequest request = new UploadRequest(mainActivity, uploadID, uploadURL);
-                request.addHeader(deviceIDHeader, deviceID); // add header, currently used on backend for security validation
-                request.addFileToUpload(Recording.this.videoFilePath, videoParamName, recording.filename, VIDEO_MIME_TYPE);
+                    UploadRequest request = new UploadRequest(mainActivity, uploadID, uploadURL);
+                    request.addHeader(deviceIDHeader, deviceID); // add header, currently used on backend for security validation
+                    request.addFileToUpload(Recording.this.videoFilePath, videoParamName, recording.filename, VIDEO_MIME_TYPE);
 
-                // Messages to display upon various events during upload
-                request.setNotificationConfig(R.drawable.ic_launcher, mainActivity.getString(R.string.app_name),
-                        mainActivity.getString(R.string.uploading), mainActivity.getString(R.string.upload_success),
-                        mainActivity.getString(R.string.upload_error), false);
+                    // Messages to display upon various events during upload
+                    request.setNotificationConfig(R.drawable.ic_launcher, mainActivity.getString(R.string.app_name),
+                            mainActivity.getString(R.string.uploading), mainActivity.getString(R.string.upload_success),
+                            mainActivity.getString(R.string.upload_error), false);
 
-                // set the intent to perform when the user taps on the upload notification.
-                // currently tested only with intents that launches an activity
-                // if you comment this line, no action will be performed when the user taps on the notification
-                Intent notifClickIntent = new Intent(mainActivity, MainActivity.class);
-                request.setNotificationClickIntent(notifClickIntent);
+                    // set the intent to perform when the user taps on the upload notification.
+                    // currently tested only with intents that launches an activity
+                    // if you comment this line, no action will be performed when the user taps on the notification
+                    Intent notifClickIntent = new Intent(mainActivity, MainActivity.class);
+                    request.setNotificationClickIntent(notifClickIntent);
 
-                // set the maximum number of automatic upload retries on error
-                request.setMaxRetries(1);
+                    // set the maximum number of automatic upload retries on error
+                    request.setMaxRetries(1);
 
-                // register a broadcast receiver for the request
-                UploadServiceReceiver receiver = new UploadServiceReceiver(recording, mainActivity);
-                receiver.register(mainActivity);
-                // send the request
-                try {
-                    UploadService.startUpload(request);
-                    cb.onResponse(response, retrofit); // bubble up success via cb
-                } catch (MalformedURLException e) {
-                    e.printStackTrace();
-                    Toast.makeText(mainActivity, mainActivity.getString(R.string.upload_error), Toast.LENGTH_SHORT).show();
+                    // register a broadcast receiver for the request
+                    UploadServiceReceiver receiver = new UploadServiceReceiver(Recording.this, mainActivity);
+                    receiver.register(mainActivity);
+                    // send the request
+                    try {
+                        UploadService.startUpload(request);
+                        cb.onResponse(response, retrofit); // bubble up success via cb
+                    } catch (MalformedURLException e) {
+                        e.printStackTrace();
+                        Toast.makeText(mainActivity, mainActivity.getString(R.string.upload_error), Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    Throwable t = new Throwable(String.format("Got status %d with message '%s' while trying to post new recording", response.code(), response.message()));
+                    cb.onFailure(t);
                 }
             }
 
@@ -283,7 +286,7 @@ public class Recording {
         Call<Recording> call = recordingService.newRecording(this);
         Response<Recording> response = call.execute();
         Recording dbRecording = response.body();
-        dbRecording.isFromDatabase = true;
+        dbRecording.isFromAPI = true;
 
         this.copy(dbRecording); // copy response fields into this recording
     }
@@ -315,7 +318,7 @@ public class Recording {
             throw new IllegalStateException("Recording that tried to be uploaded doesn't have a filename");
         }
 
-        return context.getString(R.string.api_base_url) + "/video/" + this.filename;
+        return context.getString(R.string.api_base_url) + context.getString(R.string.video_endpoint) + this.filename;
     }
 
     /**
@@ -421,8 +424,8 @@ public class Recording {
      * specifies whether this recording was constructed from a API response
      * @return flag representing whether object is from API or constructed on device
      */
-    public boolean isFromDatabase() {
-        return isFromDatabase;
+    public boolean isFromAPI() {
+        return isFromAPI;
     }
 
 }
