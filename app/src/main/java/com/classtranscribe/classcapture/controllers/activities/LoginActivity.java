@@ -127,18 +127,23 @@ public class LoginActivity extends AppCompatActivity {
         userService.login(User.getLoginCreds(credsUser)).enqueue(new CustomCB<User>(this, TAG) {
             @Override
             public void onResponse(Response<User> response, Retrofit retrofit) {
-                User loggedInUser = response.body();
-                LoginActivity.this.defaultRealm.beginTransaction();
-                LoginActivity.this.defaultRealm.copyToRealmOrUpdate(loggedInUser);
-                LoginActivity.this.defaultRealm.commitTransaction();
-                dialog.dismiss();
-                LoginActivity.this.goToMainActivity();
+                if (response.isSuccess()) {
+                    User loggedInUser = response.body();
+                    LoginActivity.this.defaultRealm.beginTransaction();
+                    LoginActivity.this.defaultRealm.copyToRealmOrUpdate(loggedInUser);
+                    LoginActivity.this.defaultRealm.commitTransaction();
+                    dialog.dismiss();
+                    LoginActivity.this.goToMainActivity(); // leave this activity and go to main
+                } else {
+                    dialog.dismiss();
+                    Toast.makeText(LoginActivity.this, getString(R.string.login_error_message), Toast.LENGTH_LONG).show();
+                }
             }
 
             @Override
             public void onRequestFailure(Throwable t) {
                 dialog.dismiss();
-                Toast.makeText(LoginActivity.this, getString(R.string.login_error_message), Toast.LENGTH_LONG).show();
+                Toast.makeText(LoginActivity.this, getString(R.string.login_malfunction_message), Toast.LENGTH_LONG).show();
                 t.printStackTrace();
             }
         });
