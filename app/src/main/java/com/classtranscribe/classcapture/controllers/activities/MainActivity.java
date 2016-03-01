@@ -190,10 +190,26 @@ public class MainActivity extends ActionBarActivity
             Toast.makeText(this, "Login Malfunction", Toast.LENGTH_LONG).show();
             this.doLogout();
         } else {
+            // If there's no registered sections, Show a modal progress dialog that will blocks usage until user info is updated from API
+            ProgressDialog dialog = null;
+
+            if (this.currUser.getSections().isEmpty()) {
+                dialog = new ProgressDialog(this);
+                dialog.setTitle(this.getString(R.string.section_check_dialog_title));
+                dialog.setMessage(this.getString(R.string.section_check_dialog_message));
+                dialog.show();
+            }
+
+
+            final ProgressDialog finalDialog = dialog; // need to assign to final var so can be accessed within inline function
             // Send request to /user/me endpoint to get most up to date user info
             UserServiceProvider.getInstance(this).me().enqueue(new CustomCB<User>(this, MainActivity.class) {
                 @Override
                 public void onResponse(Response<User> response, Retrofit retrofit) {
+                    if (finalDialog != null && finalDialog.isShowing()) {
+                        finalDialog.dismiss();
+                    }
+
                     if (response.isSuccess()) {
                         User updatedUser = response.body();
 
@@ -203,6 +219,12 @@ public class MainActivity extends ActionBarActivity
                             MainActivity.this.defaultRealm.copyToRealmOrUpdate(updatedUser);
                             MainActivity.this.defaultRealm.commitTransaction();
                             MainActivity.this.currUser = updatedUser;
+
+                            if (MainActivity.this.currUser.getSections().isEmpty()) {
+                                Toast.makeText(MainActivity.this, MainActivity.this.getString(R.string.go_to_settings_prompt), Toast.LENGTH_SHORT).show();
+                                MainActivity.this.openSettingsInBrowser();
+                                MainActivity.this.finish();
+                            }
                         } else {
                             // Something's gone wrong...IDs don't match...logout
                             Toast.makeText(MainActivity.this, "Login Malfunction", Toast.LENGTH_LONG).show();
@@ -216,6 +238,10 @@ public class MainActivity extends ActionBarActivity
 
                 @Override
                 public void onRequestFailure(Throwable t) {
+                    if (finalDialog != null && finalDialog.isShowing()) {
+                        finalDialog.dismiss();
+                    }
+
                     t.printStackTrace();
                     Toast.makeText(MainActivity.this, "Login Malfunction", Toast.LENGTH_LONG).show();
                     MainActivity.this.doLogout();

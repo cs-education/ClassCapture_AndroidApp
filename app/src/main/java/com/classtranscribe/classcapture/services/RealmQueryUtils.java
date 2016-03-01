@@ -73,8 +73,9 @@ public class RealmQueryUtils {
         Map<Long, Long> sectionCourseMap = new HashMap<>(courseIDs.size());
         for (Section section : sections) {
             Course linkedCourse = idCourseMap.get(section.getCourse());
+            long courseID = linkedCourse != null ? linkedCourse.getId() : section.getCourse(); // in some cases linkedCourse is null...maybe race cond?
 
-            sectionCourseMap.put(section.getId(), linkedCourse.getId());
+            sectionCourseMap.put(section.getId(), courseID);
         }
 
         return sectionCourseMap;

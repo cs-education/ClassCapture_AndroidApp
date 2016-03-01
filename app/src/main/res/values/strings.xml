@@ -14,7 +14,7 @@
     <string name="video_upload_tag">video</string>
 
     <!--<string name="api_base_url">http://classcapture.cs.illinois.edu/api</string>-->
-    <string name="api_base_url">http://classcapture.cs.illinois.edu</string>
+    <string name="api_base_url">https://classcapture.ncsa.illinois.edu</string>
     <string name="register_endpoint">/front/login?tab=register</string>
     <string name="account_settings_endpoint">/front/home/account</string>
     <string name="video_endpoint">/api/video/</string>
@@ -23,6 +23,8 @@
     <string name="uploading">Uploading Recording</string>
     <string name="upload_success">Finished Upload</string>
     <string name="upload_error">There was an error while uploading</string>
+    <string name="section_check_dialog_title">Checking Section Registration</string>
+    <string name="section_check_dialog_message">Will open website if no sections are found...</string>
     <string name="go_to_settings_prompt">Please Register for a Section</string>
 
     <string name="loading_sections">Loading Sections</string>
